@@ -4,6 +4,7 @@
 - interventions are being written during flagging (should be written through frontend only)
 - the dashboard starts at week 9
 - the risk of detention chart seems wrong
+- the weekly trend chart is broken(since E_t ,A_t for some weeks are null)
 - the cross button ain't working
 - class summary is hardcoded (doesn't change even when week changes unlike dashboard startup data)
 - the mid term section is visible even before week 6 (so the data is always there, same issue with all the analysis tabs)
