@@ -2,18 +2,18 @@
 // Performance-optimised: progressive rendering, expand_flag cache, no redundant fetches.
 
 // ── APP STATE ─────────────────────────────────────────────────────────────────
-const WEEKS = ['W1','W2','W3','W4','W5','W6','W7','W8','W9','W10','W11','W12','W13','W14'];
+const WEEKS = ['W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8', 'W9', 'W10', 'W11', 'W12', 'W13', 'W14'];
 let currentWeek = 1;
-let SEMESTER    = 1;
+let SEMESTER = 1;
 
-let CLASS_ID    = '';
+let CLASS_ID = '';
 let ADVISOR_NAME = 'Advisor';
 
 // Normalised data stores
-let ALL_STUDENTS   = [];
-let FLAGGED        = [];
-let LAST_WEEK      = [];
-let INTERVENTIONS  = [];
+let ALL_STUDENTS = [];
+let FLAGGED = [];
+let LAST_WEEK = [];
+let INTERVENTIONS = [];
 
 // Map from student_id → flag_id
 let STUDENT_TO_FLAG_ID = {};
@@ -25,11 +25,11 @@ const _expandCache = new Map();
 // ── INIT ──────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
   requireAuth();
-  const info   = getAdvisorInfo();
-  CLASS_ID     = info.class_id     || 'Harcoded class';
+  const info = getAdvisorInfo();
+  CLASS_ID = info.class_id || 'Harcoded class';
   ADVISOR_NAME = info.advisor_name || 'Harcoded advisor';
-  SEMESTER     = info.semester     || 1;
-  currentWeek  = info.sem_week     || 1;
+  SEMESTER = info.semester || 1;
+  currentWeek = info.sem_week || 1;
 
   const weekBadge = document.getElementById('weekBadge');
   if (weekBadge) weekBadge.textContent = 'Week ' + currentWeek;
@@ -70,16 +70,16 @@ async function loadDashboardData() {
   showLoadingState();
 
   // Fire all requests simultaneously — do NOT await one before starting the next.
-  const summaryP      = fetchDashboardSummary(CLASS_ID, SEMESTER, currentWeek);
-  const flagsP        = fetchWeeklyFlags(CLASS_ID, SEMESTER, currentWeek);
-  const studentsP     = fetchAllStudents(CLASS_ID, SEMESTER, currentWeek);
-  const lastWeekP     = fetchLastWeekFlags(CLASS_ID, SEMESTER, currentWeek);
+  const summaryP = fetchDashboardSummary(CLASS_ID, SEMESTER, currentWeek);
+  const flagsP = fetchWeeklyFlags(CLASS_ID, SEMESTER, currentWeek);
+  const studentsP = fetchAllStudents(CLASS_ID, SEMESTER, currentWeek);
+  const lastWeekP = fetchLastWeekFlags(CLASS_ID, SEMESTER, currentWeek);
   const interventionsP = fetchInterventions(CLASS_ID, SEMESTER, currentWeek);
 
   // Render stat cards as soon as summary arrives (fastest endpoint)
   summaryP
     .then(updateStatCards)
-    .catch(() => {});
+    .catch(() => { });
 
   // Render flagged cards as soon as flags arrive
   flagsP
@@ -95,7 +95,7 @@ async function loadDashboardData() {
       ALL_STUDENTS = normaliseAllStudents(raw);
       buildRiskChart();
     })
-    .catch(() => {});
+    .catch(() => { });
 
   // Render last-week cards as soon as they arrive
   lastWeekP
@@ -108,7 +108,7 @@ async function loadDashboardData() {
   // Store interventions quietly
   interventionsP
     .then(raw => { INTERVENTIONS = normaliseInterventions(raw); })
-    .catch(() => {});
+    .catch(() => { });
 
   // Wait for all to settle so the caller knows when everything is done.
   await Promise.allSettled([summaryP, flagsP, studentsP, lastWeekP, interventionsP]);
@@ -129,49 +129,49 @@ function normaliseFlaggedStudents(raw) {
     const riskLevel = riskTierToLevel(f.risk_tier);
     return {
       flagId,
-      id:               f.student_id,
-      name:             f.student_name,
-      avatar:           initials(f.student_name),
+      id: f.student_id,
+      name: f.student_name,
+      avatar: initials(f.student_name),
       riskLevel,
-      risk:             riskLevel,
-      riskScore:        Math.round(f.risk_score || 0),
-      attendance:       Math.round(f.attendance_pct || 0),
-      reason:           f.diagnosis || 'Flagged for review',
+      risk: riskLevel,
+      riskScore: Math.round(f.risk_score || 0),
+      attendance: Math.round(f.attendance_pct || 0),
+      reason: f.diagnosis || 'Flagged for review',
       escalation_level: f.escalation_level,
-      flagHistory:      [],
+      flagHistory: [],
     };
   });
 }
 
 function normaliseAllStudents(raw) {
-  const sm  = raw.student_map || {};
-  const at  = raw.A_t         || {};
-  const et  = raw.E_t         || {};
-  const rs  = raw.risk_score  || {};
+  const sm = raw.student_map || {};
+  const at = raw.A_t || {};
+  const et = raw.E_t || {};
+  const rs = raw.risk_score || {};
   const pmt = raw.predicted_midterm_score || {};
   const pet = raw.predicted_endterm_score || {};
-  const amt = raw.actual_midterm_score    || {};
-  const aet = raw.actual_endterm_score    || {};
+  const amt = raw.actual_midterm_score || {};
+  const aet = raw.actual_endterm_score || {};
 
   return Object.keys(sm).map(sid => {
     const riskScore = Math.round(rs[sid] || 0);
     const riskLevel = riskScore >= 70 ? 'high' : riskScore >= 45 ? 'med' : 'safe';
-    const acad      = parseFloat(at[sid]) || 0;
-    const eff       = parseFloat(et[sid]) || 0;
+    const acad = parseFloat(at[sid]) || 0;
+    const eff = parseFloat(et[sid]) || 0;
     return {
-      id:           sid,
-      name:         sm[sid],
-      avatar:       initials(sm[sid]),
+      id: sid,
+      name: sm[sid],
+      avatar: initials(sm[sid]),
       riskLevel,
-      risk:         riskLevel,
+      risk: riskLevel,
       riskScore,
       academicPerf: Math.round(acad),
-      effort:       Math.round(eff),
-      attendance:   0,
-      predMidterm:  parseFloat(pmt[sid]) || 0,
-      predEndterm:  parseFloat(pet[sid]) || 0,
-      midterm:      amt[sid] !== false ? amt[sid] : null,
-      endterm:      aet[sid] !== false ? aet[sid] : null,
+      effort: Math.round(eff),
+      attendance: 0,
+      predMidterm: parseFloat(pmt[sid]) || 0,
+      predEndterm: parseFloat(pet[sid]) || 0,
+      midterm: amt[sid] !== false ? amt[sid] : null,
+      endterm: aet[sid] !== false ? aet[sid] : null,
       weekEt: [], weekAt: [],
       avgRisk: riskScore, avgEt: Math.round(eff), avgAt: Math.round(acad),
       overallAttend: 0,
@@ -186,40 +186,40 @@ function normaliseLastWeekFlags(raw) {
   return Object.entries(raw).map(([flagId, f]) => {
     const [sid, name, diagnosis, tier] = f.basic_details || [];
     const more = f.more || {};
-    const tvl  = f.this_week_vs_last_week || {};
+    const tvl = f.this_week_vs_last_week || {};
     const riskLevel = riskTierToLevel(tier);
 
-    const etPrev  = tvl.effort?.E_t_previous           || 0;
-    const etDelta = tvl.effort?.delta_E_t               || 0;
-    const atPrev  = tvl.performance?.A_t_previous       || 0;
-    const atDelta = tvl.performance?.delta_A_t          || 0;
-    const rkPrev  = tvl.risk_score?.risk_score_previous || 0;
-    const rkDelta = tvl.risk_score?.delta_risk_score    || 0;
+    const etPrev = tvl.effort?.E_t_previous || 0;
+    const etDelta = tvl.effort?.delta_E_t || 0;
+    const atPrev = tvl.performance?.A_t_previous || 0;
+    const atDelta = tvl.performance?.delta_A_t || 0;
+    const rkPrev = tvl.risk_score?.risk_score_previous || 0;
+    const rkDelta = tvl.risk_score?.delta_risk_score || 0;
 
-    const etCurr   = Math.round(etPrev + etDelta);
-    const atCurr   = Math.round(atPrev + atDelta);
+    const etCurr = Math.round(etPrev + etDelta);
+    const atCurr = Math.round(atPrev + atDelta);
     const riskCurr = Math.round(rkPrev + rkDelta);
 
     return {
       flagId,
-      id:            sid,
-      name:          name || sid,
-      avatar:        initials(name || sid),
-      risk:          riskLevel,
+      id: sid,
+      name: name || sid,
+      avatar: initials(name || sid),
+      risk: riskLevel,
       riskLevel,
-      status:        rkDelta > 5 ? 'intervene' : rkDelta < -5 ? 'resolved' : 'monitor',
-      reason:        diagnosis || 'Flagged last week',
-      avgRisk:       Math.round(more.avg_risk_score || 0),
-      avgEt:         Math.round(more.avg_effort || 0),
-      avgAt:         Math.round(more.avg_academic_performance || 0),
+      status: rkDelta > 5 ? 'intervene' : rkDelta < -5 ? 'resolved' : 'monitor',
+      reason: diagnosis || 'Flagged last week',
+      avgRisk: Math.round(more.avg_risk_score || 0),
+      avgEt: Math.round(more.avg_effort || 0),
+      avgAt: Math.round(more.avg_academic_performance || 0),
       overallAttend: Math.round(more.overall_attendance || 0),
       riskDetention: Math.round(more.risk_of_detention || 0),
-      riskFailing:   Math.round(rkPrev),
-      midterm:       more.mid_term_score !== null && more.mid_term_score !== false ? more.mid_term_score : 'N/A',
+      riskFailing: Math.round(rkPrev),
+      midterm: more.mid_term_score !== null && more.mid_term_score !== false ? more.mid_term_score : 'N/A',
       etPrev: Math.round(etPrev), etCurr,
       atPrev: Math.round(atPrev), atCurr,
       riskPrev: Math.round(rkPrev), riskCurr,
-      recovery:  Math.max(5, 100 - riskCurr),
+      recovery: Math.max(5, 100 - riskCurr),
       intervention: null,
       factors: buildFactorsFromDiagnosis(diagnosis, Math.round(more.avg_risk_score || 0)),
     };
@@ -230,26 +230,26 @@ function normaliseInterventions(raw) {
   return Object.entries(raw).map(([id, iv]) => ({
     id,
     student_id: iv.student_id,
-    student:    iv.name,
-    name:       iv.name,
-    type:       iv.type_of_intervention,
-    date:       iv.date_of_logging,
-    change:     '—',
+    student: iv.name,
+    name: iv.name,
+    type: iv.type_of_intervention,
+    date: iv.date_of_logging,
+    change: '—',
   }));
 }
 
 // ── EXPAND FLAG NORMALISER ────────────────────────────────────────────────────
 
 function mergeExpandFlagIntoStudent(base, expanded) {
-  const ov     = expanded.student_overview || {};
-  const evp    = expanded.effort_vs_performance || {};
+  const ov = expanded.student_overview || {};
+  const evp = expanded.effort_vs_performance || {};
   const trends = expanded.trends || {};
-  const fh     = expanded.flagging_history || {};
-  const fc     = expanded.flagging_contributors || {};
+  const fh = expanded.flagging_history || {};
+  const fc = expanded.flagging_contributors || {};
 
   const weekKeys = Array.from({ length: 14 }, (_, i) => i + 1);
-  const weekEt   = weekKeys.map(w => trends.E_t?.[w] || null);
-  const weekAt   = weekKeys.map(w => trends.A_t?.[w] || null);
+  const weekEt = weekKeys.map(w => trends.E_t?.[w] || null);
+  const weekAt = weekKeys.map(w => trends.A_t?.[w] || null);
 
   const fcEntries = Object.entries(fc);
   const totalFcScore = fcEntries.reduce((s, [, v]) => s + v, 0) || 1;
@@ -261,8 +261,8 @@ function mergeExpandFlagIntoStudent(base, expanded) {
   }));
 
   const flagHistory = Object.entries(fh).map(([week, fhe]) => ({
-    week:       parseInt(week),
-    diagnosis:  fhe.diagnosis,
+    week: parseInt(week),
+    diagnosis: fhe.diagnosis,
     intervened: fhe.did_we_intervene,
   }));
 
@@ -270,25 +270,25 @@ function mergeExpandFlagIntoStudent(base, expanded) {
 
   return {
     ...base,
-    avgRisk:       riskScore,
-    avgEt:         Math.round(ov.avg_effort || 0),
-    avgAt:         Math.round(ov.avg_academic_performance || 0),
+    avgRisk: riskScore,
+    avgEt: Math.round(ov.avg_effort || 0),
+    avgAt: Math.round(ov.avg_academic_performance || 0),
     overallAttend: Math.round(ov.overall_attendance || 0),
     riskDetention: Math.round(ov.risk_of_detention || 0),
-    riskFail:      riskScore,
+    riskFail: riskScore,
     riskScore,
-    midterm:       ov.mid_term_score !== null && ov.mid_term_score !== false ? ov.mid_term_score : 'N/A',
+    midterm: ov.mid_term_score !== null && ov.mid_term_score !== false ? ov.mid_term_score : 'N/A',
     weekEt, weekAt,
     factors, flagHistory,
-    majorFactor:      factors.length ? factors[0].label : '',
-    aiSummary:        expanded.student_summary || null,
-    etThisWeek:       Math.round(evp.E_t || 0),
-    perfThisWeek:     Math.round(evp.A_t || 0),
-    studentAvgEt:     Math.round(evp.avg_effort_of_student || 0),
-    studentAvgPerf:   Math.round(evp.avg_performance_of_student || 0),
-    classAvgEt:       Math.round(evp.avg_effort_of_class || 0),
-    classAvgPerf:     Math.round(evp.avg_performance_of_class || 0),
-    recovery:         Math.max(5, 100 - riskScore),
+    majorFactor: factors.length ? factors[0].label : '',
+    aiSummary: expanded.student_summary || null,
+    etThisWeek: Math.round(evp.E_t || 0),
+    perfThisWeek: Math.round(evp.A_t || 0),
+    studentAvgEt: Math.round(evp.avg_effort_of_student || 0),
+    studentAvgPerf: Math.round(evp.avg_performance_of_student || 0),
+    classAvgEt: Math.round(evp.avg_effort_of_class || 0),
+    classAvgPerf: Math.round(evp.avg_performance_of_class || 0),
+    recovery: Math.max(5, 100 - riskScore),
   };
 }
 
@@ -303,8 +303,8 @@ function riskTierToLevel(tier) {
   if (!tier) return 'safe';
   const t = tier.toLowerCase();
   if (t.includes('tier 1') || t.includes('critical')) return 'high';
-  if (t.includes('tier 2') || t.includes('watch'))    return 'med';
-  if (t.includes('tier 3') || t.includes('warning'))  return 'low';
+  if (t.includes('tier 2') || t.includes('watch')) return 'med';
+  if (t.includes('tier 3') || t.includes('warning')) return 'low';
   return 'safe';
 }
 
@@ -322,36 +322,25 @@ function buildFactorsFromDiagnosis(diagnosis, totalScore) {
 
 function rc(risk) {
   const m = {
-    high: { cls:'risk-high', bg:'rgba(248,81,73,0.12)',  txt:'#f85149', border:'rgba(248,81,73,0.30)',  label:'High Risk' },
-    med:  { cls:'risk-med',  bg:'rgba(210,153,34,0.12)', txt:'#d29922', border:'rgba(210,153,34,0.30)', label:'Medium Risk' },
-    low:  { cls:'risk-low',  bg:'rgba(63,185,80,0.12)',  txt:'#3fb950', border:'rgba(63,185,80,0.30)',  label:'Low Risk' },
-    safe: { cls:'risk-safe', bg:'rgba(63,185,80,0.12)',  txt:'#3fb950', border:'rgba(63,185,80,0.30)',  label:'Safe' },
+    high: { cls: 'risk-high', bg: 'rgba(248,81,73,0.12)', txt: '#f85149', border: 'rgba(248,81,73,0.30)', label: 'High Risk' },
+    med: { cls: 'risk-med', bg: 'rgba(210,153,34,0.12)', txt: '#d29922', border: 'rgba(210,153,34,0.30)', label: 'Medium Risk' },
+    low: { cls: 'risk-low', bg: 'rgba(63,185,80,0.12)', txt: '#3fb950', border: 'rgba(63,185,80,0.30)', label: 'Low Risk' },
+    safe: { cls: 'risk-safe', bg: 'rgba(63,185,80,0.12)', txt: '#3fb950', border: 'rgba(63,185,80,0.30)', label: 'Safe' },
   };
   return m[risk] || m.safe;
 }
 
 function statusCfg(s) {
   const m = {
-    intervene: { bg:'rgba(248,81,73,0.12)',  txt:'#f85149', border:'rgba(248,81,73,0.30)',  label:'Needs Intervention' },
-    monitor:   { bg:'rgba(210,153,34,0.12)', txt:'#d29922', border:'rgba(210,153,34,0.30)', label:'Monitoring' },
-    resolved:  { bg:'rgba(63,185,80,0.12)',  txt:'#3fb950', border:'rgba(63,185,80,0.30)',  label:'Resolved' },
+    intervene: { bg: 'rgba(248,81,73,0.12)', txt: '#f85149', border: 'rgba(248,81,73,0.30)', label: 'Needs Intervention' },
+    monitor: { bg: 'rgba(210,153,34,0.12)', txt: '#d29922', border: 'rgba(210,153,34,0.30)', label: 'Monitoring' },
+    resolved: { bg: 'rgba(63,185,80,0.12)', txt: '#3fb950', border: 'rgba(63,185,80,0.30)', label: 'Resolved' },
   };
   return m[s] || m.monitor;
 }
 
-// ── THEME ─────────────────────────────────────────────────────────────────────
-function setTheme(t) {
-  document.documentElement.setAttribute('data-theme', t);
-  document.getElementById('darkBtn').classList.toggle('active',  t === 'dark');
-  document.getElementById('lightBtn').classList.toggle('active', t === 'light');
-  buildRiskChart();
-  const anlPage = document.getElementById('page-analytics');
-  if (anlPage && anlPage.classList.contains('active')) {
-    const midSec = document.getElementById('anl-main-midterm');
-    if (midSec && midSec.classList.contains('active')) buildMidtermCharts();
-    else buildEndtermCharts();
-  }
-}
+// ── THEME (locked to light — toggle removed from UI) ──────────────────────────
+function setTheme() { /* light mode is permanent; no-op */ }
 
 // ── SIDEBAR ───────────────────────────────────────────────────────────────────
 function toggleSidebar() { document.getElementById('sidebar').classList.toggle('collapsed'); }
@@ -363,8 +352,8 @@ function showPage(p) {
   document.getElementById('page-' + p).classList.add('active');
   const nav = document.getElementById('nav-' + p);
   if (nav) nav.classList.add('active');
-  if (p === 'students')  initStudentsPage();
-  if (p === 'calendar')  initCalendar();
+  if (p === 'students') initStudentsPage();
+  if (p === 'calendar') initCalendar();
   if (p === 'analytics') initAnalyticsPage();
 }
 
@@ -426,11 +415,11 @@ function updateWaterFill(riskScore) {
   const fill = document.getElementById('waterFill');
   if (!fill) return;
   let color;
-  if (riskScore <= 30)      color = 'rgba(63,185,80,0.4)';
+  if (riskScore <= 30) color = 'rgba(63,185,80,0.4)';
   else if (riskScore <= 50) color = 'rgba(210,153,34,0.4)';
   else if (riskScore <= 70) color = 'rgba(210,153,34,0.6)';
-  else                      color = 'rgba(248,81,73,0.5)';
-  fill.style.height     = riskScore + '%';
+  else color = 'rgba(248,81,73,0.5)';
+  fill.style.height = riskScore + '%';
   fill.style.background = color;
 }
 
@@ -538,27 +527,27 @@ function openLwDetail(idx) {
         <div class="lw-stat-row"><span class="lw-stat-label">Avg Effort</span><span class="lw-stat-val">${s.avgEt}%</span></div>
         <div class="lw-stat-row"><span class="lw-stat-label">Avg Academic Perf</span><span class="lw-stat-val">${s.avgAt}%</span></div>
         <div class="lw-stat-row"><span class="lw-stat-label">Overall Attendance</span><span class="lw-stat-val">${s.overallAttend}%</span></div>
-        <div class="lw-stat-row"><span class="lw-stat-label">Risk of Detention</span><span class="lw-stat-val" style="color:${s.riskDetention>60?'var(--red)':s.riskDetention>40?'var(--amber)':'var(--green)'}">${s.riskDetention}%</span></div>
-        <div class="lw-stat-row"><span class="lw-stat-label">Risk of Failing</span><span class="lw-stat-val" style="color:${s.riskFailing>60?'var(--red)':s.riskFailing>40?'var(--amber)':'var(--green)'}">${s.riskFailing}%</span></div>
+        <div class="lw-stat-row"><span class="lw-stat-label">Risk of Detention</span><span class="lw-stat-val" style="color:${s.riskDetention > 60 ? 'var(--red)' : s.riskDetention > 40 ? 'var(--amber)' : 'var(--green)'}">${s.riskDetention}%</span></div>
+        <div class="lw-stat-row"><span class="lw-stat-label">Risk of Failing</span><span class="lw-stat-val" style="color:${s.riskFailing > 60 ? 'var(--red)' : s.riskFailing > 40 ? 'var(--amber)' : 'var(--green)'}">${s.riskFailing}%</span></div>
         <div class="lw-stat-row"><span class="lw-stat-label">Midterm Score</span><span class="lw-stat-val">${s.midterm}</span></div>
       </div>
       <div class="dm-panel">
         <div class="lw-section-label">Reason for Flagging</div>
-        ${(s.factors||[]).map(f=>`<div class="factor-bar-row"><div class="factor-bar-top"><span class="factor-bar-label">${f.label}</span><span class="factor-bar-pct" style="color:${f.color}">${f.pct}%</span></div><div class="factor-bar-track"><div class="factor-bar-fill" style="width:${f.pct}%;background:${f.color}"></div></div></div>`).join('')}
+        ${(s.factors || []).map(f => `<div class="factor-bar-row"><div class="factor-bar-top"><span class="factor-bar-label">${f.label}</span><span class="factor-bar-pct" style="color:${f.color}">${f.pct}%</span></div><div class="factor-bar-track"><div class="factor-bar-fill" style="width:${f.pct}%;background:${f.color}"></div></div></div>`).join('')}
       </div>
     </div>
     <div class="dm-panel">
       <div class="lw-section-label">This Week vs Last Week</div>
       <div class="situation-grid">
-        <div class="sit-item"><div class="sit-label">Effort</div><div class="sit-vals"><span class="sit-val">${s.etCurr}%</span><span class="sit-arrow" style="color:${etDir?'var(--green)':'var(--red)'}">${etDir?'▲':'▼'}</span><span class="sit-change" style="color:${etDir?'var(--green)':'var(--red)'}">${Math.abs(s.etCurr-s.etPrev)}</span></div><div style="font-size:10px;color:var(--txt3);margin-top:3px">prev: ${s.etPrev}%</div></div>
-        <div class="sit-item"><div class="sit-label">Acad. Perf</div><div class="sit-vals"><span class="sit-val">${s.atCurr}%</span><span class="sit-arrow" style="color:${atDir?'var(--green)':'var(--red)'}">${atDir?'▲':'▼'}</span><span class="sit-change" style="color:${atDir?'var(--green)':'var(--red)'}">${Math.abs(s.atCurr-s.atPrev)}</span></div><div style="font-size:10px;color:var(--txt3);margin-top:3px">prev: ${s.atPrev}%</div></div>
-        <div class="sit-item"><div class="sit-label">Risk Score</div><div class="sit-vals"><span class="sit-val" style="color:${rkDir?'var(--red)':'var(--green)'}">${s.riskCurr}%</span><span class="sit-arrow" style="color:${rkDir?'var(--red)':'var(--green)'}">${rkDir?'▲':'▼'}</span><span class="sit-change" style="color:${rkDir?'var(--red)':'var(--green)'}">${Math.abs(s.riskCurr-s.riskPrev)}</span></div><div style="font-size:10px;color:var(--txt3);margin-top:3px">prev: ${s.riskPrev}%</div></div>
+        <div class="sit-item"><div class="sit-label">Effort</div><div class="sit-vals"><span class="sit-val">${s.etCurr}%</span><span class="sit-arrow" style="color:${etDir ? 'var(--green)' : 'var(--red)'}">${etDir ? '▲' : '▼'}</span><span class="sit-change" style="color:${etDir ? 'var(--green)' : 'var(--red)'}">${Math.abs(s.etCurr - s.etPrev)}</span></div><div style="font-size:10px;color:var(--txt3);margin-top:3px">prev: ${s.etPrev}%</div></div>
+        <div class="sit-item"><div class="sit-label">Acad. Perf</div><div class="sit-vals"><span class="sit-val">${s.atCurr}%</span><span class="sit-arrow" style="color:${atDir ? 'var(--green)' : 'var(--red)'}">${atDir ? '▲' : '▼'}</span><span class="sit-change" style="color:${atDir ? 'var(--green)' : 'var(--red)'}">${Math.abs(s.atCurr - s.atPrev)}</span></div><div style="font-size:10px;color:var(--txt3);margin-top:3px">prev: ${s.atPrev}%</div></div>
+        <div class="sit-item"><div class="sit-label">Risk Score</div><div class="sit-vals"><span class="sit-val" style="color:${rkDir ? 'var(--red)' : 'var(--green)'}">${s.riskCurr}%</span><span class="sit-arrow" style="color:${rkDir ? 'var(--red)' : 'var(--green)'}">${rkDir ? '▲' : '▼'}</span><span class="sit-change" style="color:${rkDir ? 'var(--red)' : 'var(--green)'}">${Math.abs(s.riskCurr - s.riskPrev)}</span></div><div style="font-size:10px;color:var(--txt3);margin-top:3px">prev: ${s.riskPrev}%</div></div>
       </div>
     </div>
     <div class="lw-bottom">
-      <div class="lw-bottom-item"><div class="lw-bottom-label">Recovery %</div><div class="lw-bottom-val" style="color:${s.recovery<30?'var(--red)':s.recovery<55?'var(--amber)':'var(--green)'}">${s.recovery}%</div><div style="height:4px;background:var(--bg3);border-radius:10px;margin-top:8px;overflow:hidden"><div style="height:100%;width:${s.recovery}%;background:${s.recovery<30?'var(--red)':s.recovery<55?'var(--amber)':'var(--green)'};border-radius:10px"></div></div></div>
+      <div class="lw-bottom-item"><div class="lw-bottom-label">Recovery %</div><div class="lw-bottom-val" style="color:${s.recovery < 30 ? 'var(--red)' : s.recovery < 55 ? 'var(--amber)' : 'var(--green)'}">${s.recovery}%</div><div style="height:4px;background:var(--bg3);border-radius:10px;margin-top:8px;overflow:hidden"><div style="height:100%;width:${s.recovery}%;background:${s.recovery < 30 ? 'var(--red)' : s.recovery < 55 ? 'var(--amber)' : 'var(--green)'};border-radius:10px"></div></div></div>
       <div class="lw-bottom-item"><div class="lw-bottom-label">Status</div><span class="status-pill" style="background:${sc.bg};color:${sc.txt};border:1px solid ${sc.border}">${sc.label}</span></div>
-      <div class="lw-bottom-item"><div class="lw-bottom-label">Intervention</div><div style="font-size:11.5px;color:var(--txt2);line-height:1.55;margin-top:4px">${s.intervention||'None recorded'}</div></div>
+      <div class="lw-bottom-item"><div class="lw-bottom-label">Intervention</div><div style="font-size:11.5px;color:var(--txt2);line-height:1.55;margin-top:4px">${s.intervention || 'None recorded'}</div></div>
     </div>`;
   document.getElementById('lwOverlay').classList.add('open'); document.body.style.overflow = 'hidden';
 }
@@ -591,14 +580,14 @@ function handleIntOvClick(e) { if (e.target === document.getElementById('interve
 
 // ── STUDENTS PAGE ─────────────────────────────────────────────────────────────
 let currentStuView = 'academicPerf';
-const STU_TOGGLE_KEYS = ['academicPerf','riskScore','effort','predMidterm','predEndterm','attendance'];
+const STU_TOGGLE_KEYS = ['academicPerf', 'riskScore', 'effort', 'predMidterm', 'predEndterm', 'attendance'];
 const STU_META = {
-  academicPerf: { label:'Academic Performance', colHeader:'Acad. Perf',  barColor:'var(--accent2)' },
-  riskScore:    { label:'Risk Score',            colHeader:'Risk Score',  barColor:'var(--red)' },
-  effort:       { label:'Effort',                colHeader:'Effort',      barColor:'var(--purple)' },
-  predMidterm:  { label:'Pred. Mid Term',         colHeader:'Mid Term',    barColor:'var(--purple)' },
-  predEndterm:  { label:'Pred. End Term',         colHeader:'End Term',    barColor:'var(--amber)' },
-  attendance:   { label:'Attendance',             colHeader:'Attendance',  barColor:'var(--green)' },
+  academicPerf: { label: 'Academic Performance', colHeader: 'Acad. Perf', barColor: 'var(--accent2)' },
+  riskScore: { label: 'Risk Score', colHeader: 'Risk Score', barColor: 'var(--red)' },
+  effort: { label: 'Effort', colHeader: 'Effort', barColor: 'var(--purple)' },
+  predMidterm: { label: 'Pred. Mid Term', colHeader: 'Mid Term', barColor: 'var(--purple)' },
+  predEndterm: { label: 'Pred. End Term', colHeader: 'End Term', barColor: 'var(--amber)' },
+  attendance: { label: 'Attendance', colHeader: 'Attendance', barColor: 'var(--green)' },
 };
 
 async function initStudentsPage() {
@@ -642,7 +631,7 @@ function renderStudentsView() {
       </div>
       <div class="stu-val-cell">
         <div class="stu-bar-wrap"><div class="stu-bar-fill" style="width:${val}%;background:${meta.barColor}"></div></div>
-        <span class="stu-val-num" style="color:${val<40?'var(--red)':val<60?'var(--amber)':'var(--txt)'}">${val}%</span>
+        <span class="stu-val-num" style="color:${val < 40 ? 'var(--red)' : val < 60 ? 'var(--amber)' : 'var(--txt)'}">${val}%</span>
       </div>
       <span class="stu-risk-pill" style="background:${r.bg};color:${r.txt}">${r.label.split(' ')[0]}</span>
       <button class="stu-view-btn" onclick="openStuDetail('${s.id}')">View Details</button>
@@ -657,25 +646,25 @@ let currentStudent = null;
 
 function generateStudentSummary(s) {
   if (s.aiSummary) return s.aiSummary;
-  const name   = s.name.split(' ')[0];
-  const acad   = s.avgAt || s.academicPerf || 0;
+  const name = s.name.split(' ')[0];
+  const acad = s.avgAt || s.academicPerf || 0;
   const attend = s.overallAttend || s.attendance || 0;
   const effort = s.avgEt || s.effort || 0;
-  const risk   = s.riskFail || s.riskScore || 0;
-  const flags  = (s.flagHistory || []).length;
+  const risk = s.riskFail || s.riskScore || 0;
+  const flags = (s.flagHistory || []).length;
   let sentences = [];
-  if      (acad >= 80) sentences.push(`${name} is performing <strong>excellently academically</strong> with an average score of ${typeof acad === 'number' ? acad.toFixed(1) : acad}%, consistently above class benchmarks.`);
+  if (acad >= 80) sentences.push(`${name} is performing <strong>excellently academically</strong> with an average score of ${typeof acad === 'number' ? acad.toFixed(1) : acad}%, consistently above class benchmarks.`);
   else if (acad >= 65) sentences.push(`${name}'s academic performance is <strong>satisfactory</strong> at ${typeof acad === 'number' ? acad.toFixed(1) : acad}%, tracking close to the class average.`);
   else if (acad >= 50) sentences.push(`${name}'s academic performance is <strong>below expectations</strong> at ${typeof acad === 'number' ? acad.toFixed(1) : acad}%, showing a need for focused academic support.`);
-  else                 sentences.push(`${name} is <strong>critically underperforming academically</strong> with an average of only ${typeof acad === 'number' ? acad.toFixed(1) : acad}%, placing them at high risk of failing.`);
-  if      (attend >= 85) sentences.push(`Attendance is <strong>strong at ${attend}%</strong>, reflecting consistent commitment and class presence.`);
+  else sentences.push(`${name} is <strong>critically underperforming academically</strong> with an average of only ${typeof acad === 'number' ? acad.toFixed(1) : acad}%, placing them at high risk of failing.`);
+  if (attend >= 85) sentences.push(`Attendance is <strong>strong at ${attend}%</strong>, reflecting consistent commitment and class presence.`);
   else if (attend >= 75) sentences.push(`Attendance stands at <strong>${attend}%</strong>, which is acceptable but could be improved to reduce risk.`);
   else if (attend >= 60) sentences.push(`Attendance is <strong>low at ${attend}%</strong> — below the 75% threshold — and is a growing concern that may affect exam eligibility.`);
-  else if (attend > 0)   sentences.push(`Attendance is <strong>critically low at ${attend}%</strong>, placing ${name} at serious risk of <strong>detention</strong>.`);
-  if      (effort >= 80) sentences.push(`Effort levels are <strong>high at ${typeof effort === 'number' ? effort.toFixed(1) : effort}%</strong>, indicating strong personal initiative and engagement.`);
+  else if (attend > 0) sentences.push(`Attendance is <strong>critically low at ${attend}%</strong>, placing ${name} at serious risk of <strong>detention</strong>.`);
+  if (effort >= 80) sentences.push(`Effort levels are <strong>high at ${typeof effort === 'number' ? effort.toFixed(1) : effort}%</strong>, indicating strong personal initiative and engagement.`);
   else if (effort >= 60) sentences.push(`Effort is <strong>moderate at ${typeof effort === 'number' ? effort.toFixed(1) : effort}%</strong>; with a bit more consistency, outcomes could improve significantly.`);
-  else if (effort > 0)   sentences.push(`Effort is <strong>poor at ${typeof effort === 'number' ? effort.toFixed(1) : effort}%</strong>, suggesting disengagement — early intervention is recommended.`);
-  if      (risk <= 20 && flags === 0) sentences.push(`Overall, ${name} is in a <strong>safe position</strong> with no flags this semester and minimal risk of failure.`);
+  else if (effort > 0) sentences.push(`Effort is <strong>poor at ${typeof effort === 'number' ? effort.toFixed(1) : effort}%</strong>, suggesting disengagement — early intervention is recommended.`);
+  if (risk <= 20 && flags === 0) sentences.push(`Overall, ${name} is in a <strong>safe position</strong> with no flags this semester and minimal risk of failure.`);
   else if (flags > 0) sentences.push(`${name} has been flagged <strong>${flags} time${flags > 1 ? 's' : ''}</strong> this semester — continued monitoring and targeted intervention are advised.`);
   return sentences.join(' ');
 }
@@ -695,7 +684,7 @@ async function getExpandedFlag(flagId) {
 
 // Open from flagged cards
 async function openFlaggedDetail(studentId) {
-  const base   = FLAGGED.find(x => x.id === studentId);
+  const base = FLAGGED.find(x => x.id === studentId);
   const flagId = STUDENT_TO_FLAG_ID[studentId] || (base && base.flagId);
 
   if (!flagId) {
@@ -720,7 +709,7 @@ async function openFlaggedDetail(studentId) {
 
 // Open from students page
 async function openStuDetail(studentId) {
-  const base   = ALL_STUDENTS.find(x => x.id === studentId);
+  const base = ALL_STUDENTS.find(x => x.id === studentId);
   const flagId = STUDENT_TO_FLAG_ID[studentId];
 
   if (flagId) {
@@ -729,7 +718,7 @@ async function openStuDetail(studentId) {
       const full = mergeExpandFlagIntoStudent(base || { id: studentId, name: studentId, avatar: initials(studentId), riskLevel: 'safe' }, expanded);
       openStuDetailFromStudent(full);
       return;
-    } catch {}
+    } catch { }
   }
   if (base) openStuDetailFromStudent(base);
 }
@@ -742,23 +731,23 @@ function openDetailFromStudent(s) {
   const rp = s.riskFail || s.riskScore || 0;
   const rc2 = rp > 70 ? 'var(--red)' : rp > 45 ? 'var(--amber)' : 'var(--green)';
   document.getElementById('dmRiskBar').style.cssText = `width:0%;background:${rc2};height:100%;border-radius:10px;transition:width 1.2s ease .4s`;
-  document.getElementById('dmRiskVal').style.color   = rc2;
-  document.getElementById('dmRiskVal').textContent   = (typeof rp === 'number' ? rp.toFixed(1) : rp) + '%';
+  document.getElementById('dmRiskVal').style.color = rc2;
+  document.getElementById('dmRiskVal').textContent = (typeof rp === 'number' ? rp.toFixed(1) : rp) + '%';
   const recov = s.recovery || Math.max(5, 100 - rp);
   const recColor = recov < 30 ? 'var(--red)' : recov < 55 ? 'var(--amber)' : 'var(--green)';
-  document.getElementById('dmRecBar').style.cssText  = `width:0%;background:${recColor};height:100%;border-radius:10px;transition:width 1.2s ease .6s`;
-  document.getElementById('dmRecVal').style.color    = recColor;
-  document.getElementById('dmRecVal').textContent    = recov + '%';
-  document.getElementById('dmFactors').innerHTML     = (s.factors || []).length
+  document.getElementById('dmRecBar').style.cssText = `width:0%;background:${recColor};height:100%;border-radius:10px;transition:width 1.2s ease .6s`;
+  document.getElementById('dmRecVal').style.color = recColor;
+  document.getElementById('dmRecVal').textContent = recov + '%';
+  document.getElementById('dmFactors').innerHTML = (s.factors || []).length
     ? s.factors.map(f => `<div class="dm-factor-bar-row"><div class="dm-factor-bar-top"><span class="dm-factor-bar-label">${f.label}</span><span class="dm-factor-bar-pct">${f.pct}%</span></div><div class="dm-factor-bar-track"><div class="dm-factor-bar-fill" style="width:0%;background:${f.color}" data-target="${f.pct}"></div></div></div>`).join('')
     : '<div style="color:var(--txt3);font-size:12px">No factors recorded</div>';
-  document.getElementById('dmMajorNote').innerHTML   = s.majorFactor ? `⚡ Major contributor: <strong style="color:var(--amber)">${s.majorFactor}</strong>` : '';
+  document.getElementById('dmMajorNote').innerHTML = s.majorFactor ? `⚡ Major contributor: <strong style="color:var(--amber)">${s.majorFactor}</strong>` : '';
   buildDmLineChart(s);
   buildDmQuadChart(s);
   setTimeout(() => {
     document.querySelectorAll('.dm-factor-bar-fill[data-target]').forEach(el => { el.style.width = el.dataset.target + '%'; });
     document.getElementById('dmRiskBar').style.width = rp + '%';
-    document.getElementById('dmRecBar').style.width  = recov + '%';
+    document.getElementById('dmRecBar').style.width = recov + '%';
   }, 80);
 }
 
@@ -785,16 +774,16 @@ function _fillDetailOverlay(s, r, prefix, lineChartId, quadChartId, overlayId) {
   const summaryPanel = document.getElementById(prefix + 'SummaryPanel') || document.getElementById(prefix + 'DetSummaryPanel');
   if (summaryPanel) summaryPanel.style.borderLeftColor = r.txt;
   const stats = [
-    ['Avg Risk Score',           `${(s.avgRisk||0).toFixed ? (s.avgRisk||0).toFixed(1) : s.avgRisk||0}%`,  (s.avgRisk||0)>60?'var(--red)':(s.avgRisk||0)>40?'var(--amber)':'var(--green)'],
-    ['Avg Effort',               `${(s.avgEt||0).toFixed   ? (s.avgEt||0).toFixed(1)   : s.avgEt||0}%`,    null],
-    ['Avg Academic Performance', `${(s.avgAt||s.academicPerf||0).toFixed ? (s.avgAt||s.academicPerf||0).toFixed(1) : s.avgAt||s.academicPerf||0}%`, (s.avgAt||s.academicPerf||0)<50?'var(--red)':null],
-    ['Overall Attendance',       `${s.overallAttend||s.attendance||0}%`,                                    (s.overallAttend||s.attendance||0)<75&&(s.overallAttend||s.attendance||0)>0?'var(--red)':null],
-    ['Risk of Detention',        `${s.riskDetention||0}%`,                                                  (s.riskDetention||0)>60?'var(--red)':(s.riskDetention||0)>40?'var(--amber)':'var(--green)'],
-    ['Risk of Failing',          `${(s.riskFail||s.riskScore||0).toFixed ? (s.riskFail||s.riskScore||0).toFixed(1) : s.riskFail||s.riskScore||0}%`, (s.riskFail||0)>60?'var(--red)':(s.riskFail||0)>40?'var(--amber)':'var(--green)'],
-    ['Midterm Score',            s.midterm !== null && s.midterm !== undefined ? s.midterm : 'N/A',         null],
+    ['Avg Risk Score', `${(s.avgRisk || 0).toFixed ? (s.avgRisk || 0).toFixed(1) : s.avgRisk || 0}%`, (s.avgRisk || 0) > 60 ? 'var(--red)' : (s.avgRisk || 0) > 40 ? 'var(--amber)' : 'var(--green)'],
+    ['Avg Effort', `${(s.avgEt || 0).toFixed ? (s.avgEt || 0).toFixed(1) : s.avgEt || 0}%`, null],
+    ['Avg Academic Performance', `${(s.avgAt || s.academicPerf || 0).toFixed ? (s.avgAt || s.academicPerf || 0).toFixed(1) : s.avgAt || s.academicPerf || 0}%`, (s.avgAt || s.academicPerf || 0) < 50 ? 'var(--red)' : null],
+    ['Overall Attendance', `${s.overallAttend || s.attendance || 0}%`, (s.overallAttend || s.attendance || 0) < 75 && (s.overallAttend || s.attendance || 0) > 0 ? 'var(--red)' : null],
+    ['Risk of Detention', `${s.riskDetention || 0}%`, (s.riskDetention || 0) > 60 ? 'var(--red)' : (s.riskDetention || 0) > 40 ? 'var(--amber)' : 'var(--green)'],
+    ['Risk of Failing', `${(s.riskFail || s.riskScore || 0).toFixed ? (s.riskFail || s.riskScore || 0).toFixed(1) : s.riskFail || s.riskScore || 0}%`, (s.riskFail || 0) > 60 ? 'var(--red)' : (s.riskFail || 0) > 40 ? 'var(--amber)' : 'var(--green)'],
+    ['Midterm Score', s.midterm !== null && s.midterm !== undefined ? s.midterm : 'N/A', null],
   ];
   const statsEl = document.getElementById(prefix + 'Stats') || document.getElementById(prefix + 'DetStats');
-  if (statsEl) statsEl.innerHTML = stats.map(([l,v,c]) => `<div class="dm-stat-row"><span class="dm-stat-label">${l}</span><span class="dm-stat-val" style="${c?`color:${c}`:''}"> ${v}</span></div>`).join('');
+  if (statsEl) statsEl.innerHTML = stats.map(([l, v, c]) => `<div class="dm-stat-row"><span class="dm-stat-label">${l}</span><span class="dm-stat-val" style="${c ? `color:${c}` : ''}"> ${v}</span></div>`).join('');
   const fh = s.flagHistory || [];
   const tf = fh.length, ti = fh.filter(f => f.intervened).length;
   const fhSum = document.getElementById(prefix + 'FhSummary') || document.getElementById(prefix + 'DetFhSummary');
@@ -803,11 +792,11 @@ function _fillDetailOverlay(s, r, prefix, lineChartId, quadChartId, overlayId) {
   if (fhList) {
     fhList.innerHTML = fh.length
       ? fh.map(f => {
-          const wk = f.week || f.sem_week || '?';
-          const diag = f.diagnosis || 'Flagged';
-          const intBadge = f.intervened ? `<span style="background:rgba(63,185,80,0.12);color:#3fb950;border:1px solid rgba(63,185,80,0.3);font-size:9.5px;padding:2px 7px;border-radius:10px;font-weight:700">Intervened</span>` : '';
-          return `<div class="fh-row"><span class="fh-week">W${wk}</span><span class="fh-diag">${diag}</span>${intBadge}</div>`;
-        }).join('')
+        const wk = f.week || f.sem_week || '?';
+        const diag = f.diagnosis || 'Flagged';
+        const intBadge = f.intervened ? `<span style="background:rgba(63,185,80,0.12);color:#3fb950;border:1px solid rgba(63,185,80,0.3);font-size:9.5px;padding:2px 7px;border-radius:10px;font-weight:700">Intervened</span>` : '';
+        return `<div class="fh-row"><span class="fh-week">W${wk}</span><span class="fh-diag">${diag}</span>${intBadge}</div>`;
+      }).join('')
       : '<div style="color:var(--txt3);font-size:12px">No flag history available</div>';
   }
 }
@@ -816,28 +805,32 @@ function closeOverlay() { document.getElementById('overlay').classList.remove('o
 function handleOvClick(e) { if (e.target === document.getElementById('overlay')) closeOverlay(); }
 function closeStuOverlay() { document.getElementById('stuDetailOverlay').classList.remove('open'); document.body.style.overflow = ''; }
 function handleStuOvClick(e) { if (e.target === document.getElementById('stuDetailOverlay')) closeStuOverlay(); }
+// Aliases matching the names used in dashboard.html onclick attributes
+function closeStuDetailOverlay() { closeStuOverlay(); }
+function handleStuDetailOvClick(e) { handleStuOvClick(e); }
+
 
 // ── SUGGESTED INTERVENTIONS ───────────────────────────────────────────────────
 const SUGGESTED_INTERVENTIONS = {
   high: [
-    {icon:'🚨', label:'Urgent Counseling Session',  desc:"Schedule an immediate one-on-one counseling session to address the student's academic and personal challenges."},
-    {icon:'📞', label:'Parent Notification Call',    desc:"Contact parents or guardians immediately to discuss the student's risk status and develop a joint action plan."},
-    {icon:'📋', label:'Academic Recovery Plan',      desc:"Create a structured, time-bound recovery plan with specific milestones for academic improvement."},
-    {icon:'👩‍🏫', label:'Peer Tutoring Assignment',  desc:"Pair the student with a high-performing peer tutor for targeted subject support."},
+    { icon: '🚨', label: 'Urgent Counseling Session', desc: "Schedule an immediate one-on-one counseling session to address the student's academic and personal challenges." },
+    { icon: '📞', label: 'Parent Notification Call', desc: "Contact parents or guardians immediately to discuss the student's risk status and develop a joint action plan." },
+    { icon: '📋', label: 'Academic Recovery Plan', desc: "Create a structured, time-bound recovery plan with specific milestones for academic improvement." },
+    { icon: '👩‍🏫', label: 'Peer Tutoring Assignment', desc: "Pair the student with a high-performing peer tutor for targeted subject support." },
   ],
   med: [
-    {icon:'💬', label:'One-on-One Check-in Meeting',  desc:"Schedule a focused meeting to understand challenges and set concrete improvement goals."},
-    {icon:'📊', label:'Weekly Progress Check-in',     desc:"Schedule a brief weekly touchpoint to monitor improvement and flag concerns early."},
-    {icon:'👥', label:'Study Group Assignment',        desc:"Assign the student to a peer study group with stronger performers."},
-    {icon:'⚠️', label:'Attendance Warning Letter',    desc:"Issue an official attendance warning letter to student and parents."},
+    { icon: '💬', label: 'One-on-One Check-in Meeting', desc: "Schedule a focused meeting to understand challenges and set concrete improvement goals." },
+    { icon: '📊', label: 'Weekly Progress Check-in', desc: "Schedule a brief weekly touchpoint to monitor improvement and flag concerns early." },
+    { icon: '👥', label: 'Study Group Assignment', desc: "Assign the student to a peer study group with stronger performers." },
+    { icon: '⚠️', label: 'Attendance Warning Letter', desc: "Issue an official attendance warning letter to student and parents." },
   ],
   low: [
-    {icon:'📊', label:'Weekly Progress Check-in',     desc:"Schedule a brief weekly touchpoint to monitor improvement and flag concerns early."},
-    {icon:'📝', label:'Assignment Recovery Plan',      desc:"Create a structured plan to help the student recover missed assignments."},
+    { icon: '📊', label: 'Weekly Progress Check-in', desc: "Schedule a brief weekly touchpoint to monitor improvement and flag concerns early." },
+    { icon: '📝', label: 'Assignment Recovery Plan', desc: "Create a structured plan to help the student recover missed assignments." },
   ],
   safe: [
-    {icon:'🌟', label:'Recognition & Encouragement',  desc:"Acknowledge good performance to maintain motivation and engagement."},
-    {icon:'📈', label:'Set Stretch Goals',             desc:"Work with the student to set higher academic targets for continued growth."},
+    { icon: '🌟', label: 'Recognition & Encouragement', desc: "Acknowledge good performance to maintain motivation and engagement." },
+    { icon: '📈', label: 'Set Stretch Goals', desc: "Work with the student to set higher academic targets for continued growth." },
   ],
 };
 
@@ -879,7 +872,7 @@ async function lockIntervention() {
   const flagId = currentStudent && (STUDENT_TO_FLAG_ID[currentStudent.id] || currentStudent.flagId);
   if (flagId) {
     const interventionText = [...checked, note].filter(Boolean).join('; ');
-    try { await logInterventionAPI(flagId, interventionText); } catch {}
+    try { await logInterventionAPI(flagId, interventionText); } catch { }
   }
 
   const toast = document.createElement('div');
@@ -890,8 +883,8 @@ async function lockIntervention() {
   setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 400); }, 3000);
 }
 
-function mailStudent()  { if (!currentStudent) return; alert(`📧 Email sent to ${currentStudent.name}`); }
-function mailParents()  { if (!currentStudent) return; alert(`📧 Email sent to parents of ${currentStudent.name}`); }
+function mailStudent() { if (!currentStudent) return; alert(`📧 Email sent to ${currentStudent.name}`); }
+function mailParents() { if (!currentStudent) return; alert(`📧 Email sent to parents of ${currentStudent.name}`); }
 
 // ── ANALYTICS PAGE ────────────────────────────────────────────────────────────
 
@@ -911,33 +904,33 @@ function setAnalyticsMain(section) {
   if (section === 'endterm') requestAnimationFrame(() => requestAnimationFrame(buildEndtermCharts));
 }
 function setMidtermView(v) {
-  ['pre','post'].forEach(x => { document.getElementById('anl-' + x).classList.toggle('active', x === v); document.getElementById('atgl-' + x).classList.toggle('active', x === v); });
-  if (v === 'pre')  requestAnimationFrame(() => requestAnimationFrame(buildPreMidtermCharts));
+  ['pre', 'post'].forEach(x => { document.getElementById('anl-' + x).classList.toggle('active', x === v); document.getElementById('atgl-' + x).classList.toggle('active', x === v); });
+  if (v === 'pre') requestAnimationFrame(() => requestAnimationFrame(buildPreMidtermCharts));
   if (v === 'post') requestAnimationFrame(() => requestAnimationFrame(buildPostMidtermCharts));
 }
 function setEndtermView(v) {
-  ['pre','post'].forEach(x => { document.getElementById('anl-' + x + '-end').classList.toggle('active', x === v); document.getElementById('atgl-' + x + '-end').classList.toggle('active', x === v); });
-  if (v === 'pre')  requestAnimationFrame(() => requestAnimationFrame(buildPreEndtermCharts));
+  ['pre', 'post'].forEach(x => { document.getElementById('anl-' + x + '-end').classList.toggle('active', x === v); document.getElementById('atgl-' + x + '-end').classList.toggle('active', x === v); });
+  if (v === 'pre') requestAnimationFrame(() => requestAnimationFrame(buildPreEndtermCharts));
   if (v === 'post') setTimeout(buildPostEndtermCharts, 30);
 }
 
 // ── ANALYTICS DATA HELPERS ────────────────────────────────────────────────────
 
-const DIST_KEYS   = ['lt_40','40to50','51to60','61to70','71to80','81to90','91to100'];
-const DIST_LABELS = ['<40%','41–50%','51–60%','61–70%','71–80%','81–90%','91–100%'];
+const DIST_KEYS = ['lt_40', '40to50', '51to60', '61to70', '71to80', '81to90', '91to100'];
+const DIST_LABELS = ['<40%', '41–50%', '51–60%', '61–70%', '71–80%', '81–90%', '91–100%'];
 
 function distToArray(dist) {
   return DIST_KEYS.map(k => dist[k] || 0);
 }
 
 // These all return from api.js cache instantly on repeat calls.
-async function getPreMidtermData()  {
+async function getPreMidtermData() {
   try { return await fetchPreMidtermReport(CLASS_ID, SEMESTER); } catch { return null; }
 }
 async function getPostMidtermData() {
   try { return await fetchPostMidtermReport(CLASS_ID, SEMESTER); } catch { return null; }
 }
-async function getPreEndtermData()  {
+async function getPreEndtermData() {
   try { return await fetchPreEndtermReport(CLASS_ID, SEMESTER); } catch { return null; }
 }
 async function getPostEndtermData() {
@@ -949,8 +942,8 @@ async function buildPreMidtermCharts() {
   if (data && data.marks_distribution) {
     window._preMidtermDistData = distToArray(data.marks_distribution);
     window._preMidtermStats = {
-      mean:  data.mean_predicted_score,
-      std:   data.standard_deviation,
+      mean: data.mean_predicted_score,
+      std: data.standard_deviation,
       top20: data.top20_pct,
       bot20: data.bottom20_pct,
     };
@@ -963,8 +956,8 @@ async function buildPostMidtermCharts() {
   const data = await getPostMidtermData();
   if (data && data.marks_distribution) {
     const dist = data.marks_distribution;
-    window._postMidtermPredData   = DIST_KEYS.map(k => dist[k]?.predicted_number_of_students || 0);
-    window._postMidtermActualData = DIST_KEYS.map(k => dist[k]?.actual_number_of_students    || 0);
+    window._postMidtermPredData = DIST_KEYS.map(k => dist[k]?.predicted_number_of_students || 0);
+    window._postMidtermActualData = DIST_KEYS.map(k => dist[k]?.actual_number_of_students || 0);
   }
   _buildPostMidtermCharts();
   _renderPostMidtermStats(data);
@@ -983,8 +976,8 @@ async function buildPostEndtermCharts() {
   const data = await getPostEndtermData();
   if (data && data.marks_distribution) {
     const dist = data.marks_distribution;
-    window._postEndtermPredData   = DIST_KEYS.map(k => dist[k]?.predicted_number_of_students || 0);
-    window._postEndtermActualData = DIST_KEYS.map(k => dist[k]?.actual_number_of_students    || 0);
+    window._postEndtermPredData = DIST_KEYS.map(k => dist[k]?.predicted_number_of_students || 0);
+    window._postEndtermActualData = DIST_KEYS.map(k => dist[k]?.actual_number_of_students || 0);
   }
   _buildPostEndtermCharts();
 }
@@ -1013,7 +1006,7 @@ function _renderPostMidtermStats(data) {
     <div class="anl-stat-row"><span>Top 20%</span><strong style="color:var(--green)">${data.top20_pct}%</strong></div>
     <div class="anl-stat-row"><span>Bottom 20%</span><strong style="color:var(--red)">${data.bottom20_pct}%</strong></div>`;
   _renderPerformerList(data.underperformers, 'postMidtermUnder', 'Underperformers');
-  _renderPerformerList(data.outperformers,   'postMidtermOver',  'Outperformers');
+  _renderPerformerList(data.outperformers, 'postMidtermOver', 'Outperformers');
 }
 
 function _renderPreEndtermStats(data) {
@@ -1035,7 +1028,7 @@ function _renderWatchlist(watchlist, elId) {
   if (!entries.length) { el.innerHTML = '<div style="color:var(--txt3);font-size:12px">No students on watchlist</div>'; return; }
   el.innerHTML = entries.map(([sid, [name, reason, score, riskLvl]]) => {
     const r = rc(riskLvl || 'med');
-    return `<div class="wl-row"><div class="wl-id">${sid}</div><div class="wl-name">${name}</div><div class="wl-score" style="color:${score<50?'var(--red)':'var(--amber)'}"><strong>${score}%</strong></div><span class="wl-risk" style="background:${r.bg};color:${r.txt};font-size:9.5px;padding:2px 7px;border-radius:8px;font-weight:700">${r.label}</span></div>`;
+    return `<div class="wl-row"><div class="wl-id">${sid}</div><div class="wl-name">${name}</div><div class="wl-score" style="color:${score < 50 ? 'var(--red)' : 'var(--amber)'}"><strong>${score}%</strong></div><span class="wl-risk" style="background:${r.bg};color:${r.txt};font-size:9.5px;padding:2px 7px;border-radius:8px;font-weight:700">${r.label}</span></div>`;
   }).join('');
 }
 
@@ -1053,29 +1046,29 @@ function _renderPerformerList(list, elId, label) {
 
 // ── SCHEDULE / CALENDAR ───────────────────────────────────────────────────────
 let scheduleTasks = [
-  {id:1, name:"Prepare midterm review material",        day:2, time:10, duration:1, category:"Academic"},
-  {id:2, name:"Meet with HOD about at-risk student",    day:2, time:14, duration:1, category:"Meeting"},
-  {id:3, name:"Review flagged students progress",       day:1, time:11, duration:1, category:"Urgent"},
-  {id:4, name:"Send parent emails for flagged students",day:3, time:9,  duration:1, category:"Email"},
+  { id: 1, name: "Prepare midterm review material", day: 2, time: 10, duration: 1, category: "Academic" },
+  { id: 2, name: "Meet with HOD about at-risk student", day: 2, time: 14, duration: 1, category: "Meeting" },
+  { id: 3, name: "Review flagged students progress", day: 1, time: 11, duration: 1, category: "Urgent" },
+  { id: 4, name: "Send parent emails for flagged students", day: 3, time: 9, duration: 1, category: "Email" },
 ];
 let nextSchedId = 5;
 const SCHED_COLORS = {
-  Academic:{bg:'rgba(59,130,246,0.12)',border:'rgba(59,130,246,0.3)',text:'#3b82f6',tagBg:'rgba(59,130,246,0.12)',tagTxt:'#3b82f6'},
-  Meeting: {bg:'rgba(245,158,11,0.12)',border:'rgba(245,158,11,0.3)',text:'#f59e0b',tagBg:'rgba(245,158,11,0.12)',tagTxt:'#d97706'},
-  Urgent:  {bg:'rgba(239,68,68,0.12)', border:'rgba(239,68,68,0.3)', text:'#ef4444',tagBg:'rgba(239,68,68,0.12)',tagTxt:'#ef4444'},
-  Email:   {bg:'rgba(16,185,129,0.12)',border:'rgba(16,185,129,0.3)',text:'#10b981',tagBg:'rgba(16,185,129,0.12)',tagTxt:'#059669'},
+  Academic: { bg: 'rgba(59,130,246,0.12)', border: 'rgba(59,130,246,0.3)', text: '#3b82f6', tagBg: 'rgba(59,130,246,0.12)', tagTxt: '#3b82f6' },
+  Meeting: { bg: 'rgba(245,158,11,0.12)', border: 'rgba(245,158,11,0.3)', text: '#f59e0b', tagBg: 'rgba(245,158,11,0.12)', tagTxt: '#d97706' },
+  Urgent: { bg: 'rgba(239,68,68,0.12)', border: 'rgba(239,68,68,0.3)', text: '#ef4444', tagBg: 'rgba(239,68,68,0.12)', tagTxt: '#ef4444' },
+  Email: { bg: 'rgba(16,185,129,0.12)', border: 'rgba(16,185,129,0.3)', text: '#10b981', tagBg: 'rgba(16,185,129,0.12)', tagTxt: '#059669' },
 };
-const SCHED_DAYS  = ['Mon','Tue','Wed','Thu','Fri','Sat'];
-const SCHED_DATES = [7,8,9,10,11,12];
+const SCHED_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const SCHED_DATES = [7, 8, 9, 10, 11, 12];
 
 function addScheduleTask() {
   const name = document.getElementById('schedTaskName').value.trim();
   if (!name) return;
-  const day      = parseInt(document.getElementById('schedDay').value);
-  const time     = parseInt(document.getElementById('schedTime').value);
+  const day = parseInt(document.getElementById('schedDay').value);
+  const time = parseInt(document.getElementById('schedTime').value);
   const duration = parseInt(document.getElementById('schedDuration').value);
   const category = document.getElementById('schedCategory').value;
-  scheduleTasks.push({id:nextSchedId++, name, day, time, duration, category});
+  scheduleTasks.push({ id: nextSchedId++, name, day, time, duration, category });
   document.getElementById('schedTaskName').value = '';
   renderSchedule();
 }
@@ -1087,7 +1080,7 @@ function renderScheduleTaskList() {
   container.innerHTML = scheduleTasks.map(t => {
     const c = SCHED_COLORS[t.category] || SCHED_COLORS.Academic;
     const dayLabel = SCHED_DAYS[t.day] || 'Mon';
-    const truncName = t.name.length > 26 ? t.name.substring(0,26) + '...' : t.name;
+    const truncName = t.name.length > 26 ? t.name.substring(0, 26) + '...' : t.name;
     return `<div class="sched-task-item" style="border-left:3px solid ${c.text}">
       <div class="sched-task-info"><div class="sched-task-name">${truncName}</div><div class="sched-task-time">${dayLabel} · ${t.time}:00</div></div>
       <span class="todo-tag" style="background:${c.tagBg};color:${c.tagTxt};font-size:10px;font-weight:700;padding:2px 8px;border-radius:6px;white-space:nowrap">${t.category}</span>
@@ -1103,7 +1096,7 @@ function renderScheduleGrid() {
   let html = '<div class="cal-day-head" style="background:var(--bg3);border-bottom:1px solid var(--border)"></div>';
   for (let d = 0; d < 6; d++) {
     const isToday = d === 1;
-    html += `<div class="cal-day-head"><div class="cal-day-name">${SCHED_DAYS[d]}</div><div class="cal-day-num${isToday?' today':''}"> ${SCHED_DATES[d]}</div></div>`;
+    html += `<div class="cal-day-head"><div class="cal-day-name">${SCHED_DAYS[d]}</div><div class="cal-day-num${isToday ? ' today' : ''}"> ${SCHED_DATES[d]}</div></div>`;
   }
   for (let h of hours) {
     html += `<div class="cal-time-cell">${h}:00</div>`;
@@ -1112,7 +1105,7 @@ function renderScheduleGrid() {
       if (task) {
         const c = SCHED_COLORS[task.category] || SCHED_COLORS.Academic;
         const heightPx = task.duration * 50;
-        const truncName = task.name.length > 20 ? task.name.substring(0,20) + '...' : task.name;
+        const truncName = task.name.length > 20 ? task.name.substring(0, 20) + '...' : task.name;
         const endTime = task.time + task.duration;
         html += `<div class="cal-cell" style="position:relative"><div class="sched-block" style="background:${c.bg};border-left:3px solid ${c.text};height:${heightPx}px;position:absolute;top:2px;left:2px;right:2px;padding:6px 8px;border-radius:6px;font-size:11px;font-weight:600;color:${c.text};overflow:hidden;z-index:2;cursor:pointer">${truncName}<div style="font-size:10px;font-weight:400;margin-top:2px;opacity:0.75">${task.time}:00–${endTime}:00</div></div></div>`;
       } else {
