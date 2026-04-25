@@ -354,9 +354,9 @@ def _rollback_analysis_db(target_global_week):
             # Full wipe of all derived data
             for model, label in [
                 (weekly_metrics,   'weekly_metrics'),
+                (intervention_log, 'intervention_log'),
                 (weekly_flags,     'weekly_flags'),
                 (pre_sem_watchlist,'pre_sem_watchlist'),
-                (intervention_log, 'intervention_log'),
                 (subject_difficulty,'subject_difficulty'),
                 (event_log,        'event_log'),
             ]:
@@ -367,8 +367,8 @@ def _rollback_analysis_db(target_global_week):
             # Trim rows beyond (target_semester, target_sem_week)
             for model, label in [
                 (weekly_metrics,  'weekly_metrics'),
-                (weekly_flags,    'weekly_flags'),
                 (intervention_log,'intervention_log'),
+                (weekly_flags,    'weekly_flags'),
             ]:
                 count, _ = model.objects.filter(
                     semester__gt=target_semester

@@ -37,41 +37,108 @@ function fillNulls(arr) {
 }
 
 // ── RISK SCATTER CHART (Dashboard) ──
+// ── RISK SCATTER CHART (Dashboard) ──
 let riskChartInst = null;
-function buildRiskChart() {
-  if (riskChartInst) { riskChartInst.destroy(); riskChartInst = null }
-  const d = isDark();
+ 
+// Distinct palette — visually separable, works in both light & dark themes
+const STUDENT_PALETTE = [
+  '#4e79a7', '#f28e2b', '#e15759', '#76b7b2',
+  '#59a14f', '#edc948', '#b07aa1', '#ff9da7',
+  '#9c755f', '#bab0ac', '#17becf', '#bcbd22',
+];
+ 
+ 
+function buildRiskChart(detainmentRaw = {}) {
+  if (riskChartInst) { riskChartInst.destroy(); riskChartInst = null; }
   const { tc, gc, tip } = chartDefaults();
-  const colorMap = { high: 'rgba(255,80,80,0.88)', med: 'rgba(245,166,35,0.88)', safe: 'rgba(0,214,143,0.88)' };
-  // ALL_STUDENTS is the normalised array from script.js
-  // Fields: attendance (may be 0), riskScore, riskLevel
-  const riskData = (typeof ALL_STUDENTS !== 'undefined' ? ALL_STUDENTS : []).map(s => ({
-    name: s.name, attend: s.attendance || 0, riskScore: s.riskScore || 0, r: s.riskLevel || 'safe'
-  }));
+ 
+  const entries = Object.entries(detainmentRaw);
+ 
+  // One dataset per student — scatter only (showLine: false prevents the smear)
+  const studentDatasets = entries.map(([student_id, d], i) => {
+    const match = (typeof ALL_STUDENTS !== 'undefined' ? ALL_STUDENTS : [])
+                    .find(s => s.id === student_id);
+    const name  = match?.name ?? student_id;
+    const color = STUDENT_PALETTE[i % STUDENT_PALETTE.length];
+    const tier        = d.risk_tier ?? '';
+    const borderColor = tier === 'HIGH'   ? 'rgba(255,80,80,1)'
+                      : tier === 'MEDIUM' ? 'rgba(210,153,34,1)'
+                      : color;
+    const borderWidth = tier === 'HIGH' ? 2.5 : tier === 'MEDIUM' ? 2 : 1;
+ 
+    return {
+      label: name,
+      data: [{ x: d.risk_score, y: d.attendance_pct, name, tier }],
+      backgroundColor: color + 'cc',
+      borderColor,
+      borderWidth,
+      showLine: false,          // critical: prevents Chart.js connecting points
+      pointRadius: 10,
+      pointHoverRadius: 14,
+    };
+  });
+ 
+  // Threshold — pure line dataset, no points, not connected to scatter data
+  const thresholdDataset = {
+    label: '75% Detention Threshold',
+    data: [{ x: 75, y: 0 }, { x: 75, y: 100 }],
+    type: 'line',
+    showLine: true,
+    borderColor: 'rgba(210,153,34,0.85)',
+    borderWidth: 2,
+    borderDash: [6, 4],
+    pointRadius: 0,
+    pointHoverRadius: 0,
+    fill: false,
+    order: -1,                  // draw behind scatter points
+  };
+ 
   riskChartInst = new Chart(document.getElementById('riskChart'), {
     type: 'scatter',
-    data: {
-      datasets: [{
-        label: 'Students', data: riskData.map(s => ({ x: s.attend, y: s.riskScore, name: s.name, r: s.r })),
-        backgroundColor: riskData.map(s => colorMap[s.r] || colorMap.safe),
-        borderColor: riskData.map(s => (colorMap[s.r] || colorMap.safe).replace('0.85', '1')),
-        borderWidth: 1.5, pointRadius: 9, pointHoverRadius: 13,
-      }, {
-        label: '75% Threshold', data: [{ x: 75, y: 0 }, { x: 75, y: 100 }],
-        type: 'line', borderColor: 'rgba(210,153,34,0.7)', borderWidth: 2, borderDash: [6, 4], pointRadius: 0, fill: false,
-      }]
-    },
+    data: { datasets: [...studentDatasets, thresholdDataset] },
     options: {
       responsive: true, maintainAspectRatio: false,
       plugins: {
-        legend: { display: false }, tooltip: {
-          ...tip, filter: item => item.datasetIndex === 0,
-          callbacks: { title: ctx => `${ctx[0].raw.name}`, label: ctx => `Attendance: ${ctx.raw.x}% · Risk: ${ctx.raw.y}%` }
+        legend: {
+          display: false,
+          labels: {
+            color: tc,
+            font: { family: 'DM Sans', size: 11 },
+            usePointStyle: true,
+            pointStyleWidth: 10,
+            // Filter out threshold line from legend if you prefer cleaner look:
+            // filter: item => item.datasetIndex < studentDatasets.length,
+          }
+        },
+        tooltip: {
+          ...tip,
+          // Only show tooltip for student point datasets, not the threshold line
+          filter: item => item.datasetIndex < studentDatasets.length,
+          callbacks: {
+            title: ctx => ctx[0].raw.name,
+            label: ctx => {
+              const tier = ctx.raw.tier ? `  [${ctx.raw.tier}]` : '';
+              return `Risk: ${ctx.raw.x}%  ·  Attendance: ${ctx.raw.y}%${tier}`;
+            },
+          }
         }
       },
       scales: {
-        x: { grid: { color: gc }, ticks: { color: tc, font: { size: 11, family: 'DM Sans' } }, min: 0, max: 105, title: { display: true, text: 'Attendance (%)', color: tc, font: { size: 11 } } },
-        y: { grid: { color: gc }, ticks: { color: tc, font: { size: 11 } }, min: 0, max: 100, title: { display: true, text: 'Risk Score (%)', color: tc, font: { size: 11 } } }
+        x: {
+          grid: { color: gc },
+          ticks: { color: tc, font: { size: 11, family: 'DM Sans' } },
+          // suggestedMin/Max instead of hard min/max — points never get clipped
+          suggestedMin: 0,
+          suggestedMax: 100,
+          title: { display: true, text: 'Risk of Detention (%)', color: tc, font: { size: 11 } }
+        },
+        y: {
+          grid: { color: gc },
+          ticks: { color: tc, font: { size: 11 } },
+          suggestedMin: 0,
+          suggestedMax: 100,
+          title: { display: true, text: 'Overall Attendance (%)', color: tc, font: { size: 11 } }
+        }
       }
     }
   });

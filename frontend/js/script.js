@@ -49,7 +49,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const flaggedWeekSub = document.getElementById('flaggedWeekSub');
   if (flaggedWeekSub) flaggedWeekSub.textContent = 'Week ' + currentWeek + ' · Semester ' + SEMESTER;
   const semBadge = document.getElementById('semBadge');
-  if (semBadge) semBadge.textContent='Semester'+SEMESTER
+  if (semBadge) semBadge.textContent='Semester'+SEMESTER;
 
   document.querySelectorAll('.advisor-name').forEach(el => el.textContent = ADVISOR_NAME);
   document.querySelectorAll('.advisor-avatar').forEach(el => {
@@ -90,6 +90,7 @@ async function loadDashboardData() {
   const studentsP = fetchAllStudents(CLASS_ID, SEMESTER, currentWeek);
   const lastWeekP = fetchLastWeekFlags(CLASS_ID, SEMESTER, currentWeek);
   const interventionsP = fetchInterventions(CLASS_ID, SEMESTER, currentWeek);
+  const detainmentP = fetchDetainmentRisk(CLASS_ID, SEMESTER,currentWeek);
 
   // Render stat cards as soon as summary arrives (fastest endpoint)
   summaryP
@@ -104,14 +105,14 @@ async function loadDashboardData() {
     })
     .catch(() => showError('flaggedGrid', 'Could not load flagged students'));
 
-  // Build risk chart as soon as students arrive
-  studentsP
-    .then(raw => {
-      ALL_STUDENTS = normaliseAllStudents(raw);
-      buildRiskChart();
+  // Add this new handler:
+  Promise.all([studentsP, detainmentP])
+    .then(([studentsRaw, detainmentRaw]) => {
+      ALL_STUDENTS = ALL_STUDENTS.length ? ALL_STUDENTS : normaliseAllStudents(studentsRaw);
+      buildRiskChart(detainmentRaw);
     })
-    .catch(() => { });
-
+  .catch(() => { });
+  
   // Render last-week cards as soon as they arrive
   lastWeekP
     .then(raw => {

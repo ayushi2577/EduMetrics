@@ -909,9 +909,9 @@ def all_students(request):
 @api_view(['GET'])
 def detainment_risk(request):
     """
-    GET /api/analysis/students/detainment_risk/?class_id=X&semester=Y
+    GET /api/analysis/students/detainment_risk/?class_id=X&semester=Y&sem_week=Z
 
-    Returns all students with risk_of_detention >= 85%.
+    Returns all students with risk_of_detention >= 50% for the given week.
 
     {
         student_id: {
@@ -920,18 +920,13 @@ def detainment_risk(request):
         }
     }
     """
-    params, err = _require(request, 'class_id', 'semester')
+    params, err = _require(request, 'class_id', 'semester', 'sem_week')
     if err:
         return err
 
-    class_id = params['class_id']
-    semester = int(params['semester'])
-
-    # Get the latest sem_week entry per student and filter detention >= 85
-    # Use the most recent weekly_metrics entry per student
-    latest_week = weekly_metrics.objects.filter(
-        class_id=class_id, semester=semester
-    ).aggregate(max_week=Max('sem_week'))['max_week']
+    class_id    = params['class_id']
+    semester    = int(params['semester'])
+    latest_week = int(params['sem_week'])
 
     if not latest_week:
         return Response({})
@@ -940,7 +935,7 @@ def detainment_risk(request):
         class_id=class_id,
         semester=semester,
         sem_week=latest_week,
-        risk_of_detention__gte=85,
+        risk_of_detention__gte=50,
     ).values('student_id', 'risk_of_detention', 'overall_att_pct')
 
     result = {
@@ -950,9 +945,26 @@ def detainment_risk(request):
         }
         for m in at_risk
     }
+    if result:
+        return Response(result)
+    # No one is >= 50%, so just return the single highest-risk student
+    highest = weekly_metrics.objects.filter(
+        class_id=class_id,
+        semester=semester,
+        sem_week=latest_week,
+    ).order_by('-risk_of_detention').values(
+        'student_id', 'risk_of_detention', 'overall_att_pct'
+    ).first()
 
-    return Response(result)
+    if not highest:
+        return Response({})
 
+    return Response({
+        highest['student_id']: {
+            'risk_score':     round(_f(highest['risk_of_detention']), 1),
+            'attendance_pct': round(_f(highest['overall_att_pct']), 1),
+        }
+    })
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  5. EVENT REPORTS

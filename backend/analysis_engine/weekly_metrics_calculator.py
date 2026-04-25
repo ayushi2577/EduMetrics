@@ -11,7 +11,7 @@
 #  ── Metrics ──────────────────────────────────────────────────────────────────
 #  E_t  (effort_score)         — dynamic_score() with W_E weights, this-week signals
 #  A_t  (academic_performance) — dynamic_score() with W_A weights, cumulative signals
-#  risk_of_detention           — threshold on cumulative overall_att_pct
+#  risk_of_detention           — pressure-based score aimed at endterm (week 18)
 # ============================================================
 
 import math
@@ -67,11 +67,8 @@ W_A = dict(
 LIBRARY_CAP = 10   # visits per week
 BORROW_CAP  =  5   # borrows per week
 
-# Detention risk thresholds (overall cumulative attendance %)
-DETENTION_CERTAIN = 65   # below this → risk = 100
-DETENTION_AT_RISK = 75   # below this → risk = 75
-DETENTION_WARNING = 85   # below this → risk = 40
-                          # >= 85      → risk = 0
+# Detention risk constants
+ATTENDANCE_TARGET = 0.75    # 75% rule
 
 
 # ══════════════════════════════════════════════════════════════
@@ -585,24 +582,89 @@ def _compute_At(
 # 7. RISK OF DETENTION
 # ══════════════════════════════════════════════════════════════
 
-def _compute_detention_risk(overall_att_pct):
+def _pressure(attended: int, held: int, remaining: int):
     """
-    Threshold-based detention risk (0-100).
-    Returns (risk_of_detention, overall_att_pct) — both None if no data.
+    Fraction of remaining lectures the student MUST attend to reach 75% overall.
+
+    Returns:
+        0.0        — already safe (no pressure)
+        0.0 – 1.0  — partial pressure
+        > 1.0      — mathematically impossible (certain detention)
+        None       — no remaining lectures (exam week or beyond)
     """
-    if overall_att_pct is None:
+    if remaining <= 0:
+        return None
+
+    needed = ATTENDANCE_TARGET * (held + remaining) - attended
+
+    if needed <= 0:
+        return 0.0
+
+    return needed / remaining
+
+
+def _pressure_to_risk(p) -> float:
+    """
+    Map a pressure ratio p → risk_of_detention score in [0, 100].
+
+    Piecewise linear scale:
+        p <= 0          →   0
+        0  < p <= 0.50  →   0 – 40   (low-moderate)
+        0.50 < p <= 0.75→  40 – 60   (moderate)
+        0.75 < p <= 1.0 →  60 – 90   (high risk)
+        p  > 1.0        → 100        (certain detention)
+    """
+    if p is None:
+        return None
+
+    if p <= 0:
+        return 0.0
+
+    if p > 1.0:
+        return 100.0
+
+    if p <= 0.50:
+        return round(p / 0.50 * 40.0, 2)
+
+    if p <= 0.75:
+        return round(40.0 + (p - 0.50) / 0.25 * 20.0, 2)
+
+    # p in (0.75, 1.0]
+    return round(60.0 + (p - 0.75) / 0.25 * 30.0, 2)
+
+
+def _compute_detention_risk(total_present, total_held, sem_week):
+    """
+    Compute overall_att_pct and risk_of_detention for a single student.
+
+    Remaining lectures to the endterm are estimated from the average lectures
+    held per teaching week so far — this naturally accounts for the actual
+    number of subjects without needing a separate subject-count query.
+
+    Returns (overall_att_pct, risk_of_detention) — both None if no data.
+    """
+    if total_held <= 0:
         return None, None
 
-    if overall_att_pct < DETENTION_CERTAIN:
-        risk = 100.0
-    elif overall_att_pct < DETENTION_AT_RISK:
-        risk = 75.0
-    elif overall_att_pct < DETENTION_WARNING:
-        risk = 40.0
-    else:
-        risk = 0.0
+    overall_att_pct = round(total_present / total_held * 100.0, 2)
 
-    return round(risk, 2), round(overall_att_pct, 2)
+    # Teaching weeks elapsed so far (excluding exam weeks)
+    weeks_so_far = len([w for w in range(1, sem_week + 1) if w not in EXAM_WEEKS])
+
+    # Average lectures held per teaching week (reflects real subject count + cancellations)
+    avg_held_per_week = total_held / weeks_so_far if weeks_so_far > 0 else 0
+
+    # Remaining teaching weeks to endterm
+    weeks_left_to_end = [
+        w for w in range(sem_week + 1, ENDTERM_WEEK)
+        if w not in EXAM_WEEKS
+    ]
+    remaining_end = round(avg_held_per_week * len(weeks_left_to_end))
+
+    p_end    = _pressure(int(total_present), int(total_held), remaining_end)
+    risk_end = _pressure_to_risk(p_end)
+
+    return overall_att_pct, risk_end
 
 
 # ══════════════════════════════════════════════════════════════
@@ -739,15 +801,13 @@ def run(sem_week=None, semester=None):
         )
 
         # ── Overall attendance (cumulative) for detention risk ────────────────
-        cum_att = att_cu_by_stu.get(sid, [])
-        if cum_att:
-            total_present = sum(float(r.get('present')       or 0) for r in cum_att)
-            total_held    = sum(float(r.get('lectures_held')  or 0) for r in cum_att)
-            overall_att   = (total_present / total_held * 100) if total_held > 0 else None
-        else:
-            overall_att   = None
+        cum_att       = att_cu_by_stu.get(sid, [])
+        total_present = sum(float(r.get('present')      or 0) for r in cum_att)
+        total_held    = sum(float(r.get('lectures_held') or 0) for r in cum_att)
 
-        risk_detention, overall_att_pct = _compute_detention_risk(overall_att)
+        overall_att_pct, risk_detention = _compute_detention_risk(
+            total_present, total_held, sem_week,
+        )
 
         fields = dict(
             class_id             = cid,

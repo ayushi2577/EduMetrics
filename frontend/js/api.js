@@ -219,8 +219,8 @@ function fetchAllStudents(class_id, semester, sem_week) {
   return _cachedApiFetch(`/api/analysis/students/all/${qs({ class_id, semester, sem_week })}`);
 }
 
-function fetchDetainmentRisk(class_id, semester) {
-  return _cachedApiFetch(`/api/analysis/students/detainment_risk/${qs({ class_id, semester })}`);
+function fetchDetainmentRisk(class_id, semester,sem_week) {
+  return _cachedApiFetch(`/api/analysis/students/detainment_risk/${qs({ class_id, semester,sem_week })}`);
 }
 
 // ── REPORTS ───────────────────────────────────────────────────────────────────
