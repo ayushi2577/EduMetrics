@@ -813,6 +813,7 @@ def all_students(request):
         actual_midterm_score    : { student_id: value | False },
         predicted_endterm_score : { student_id: value | False },
         actual_endterm_score    : { student_id: value | False },
+        attendance:           {student_id:value | False}
     }
     """
     params, err = _require(request, 'class_id', 'semester', 'sem_week')
@@ -822,10 +823,9 @@ def all_students(request):
     class_id = params['class_id']
     semester = int(params['semester'])
     sem_week = int(params['sem_week'])
-
     metrics_qs = list(weekly_metrics.objects.filter(
         class_id=class_id, semester=semester, sem_week=sem_week
-    ).values('student_id', 'effort_score', 'academic_performance', 'risk_score'))
+        ).values('student_id', 'effort_score', 'academic_performance', 'risk_score', 'overall_att_pct'))
 
     # Latest midterm / endterm predictions (only this semester)
     pmt_map = {}
@@ -853,6 +853,7 @@ def all_students(request):
     actual_midterm_map   = {}
     pred_endterm_map     = {}
     actual_endterm_map   = {}
+    att_map = {}
 
     # ✅ FIX: Fetch all exam scores in 2 queries total
     from .client_models import ClientExamSchedule, ClientExamResult
@@ -893,6 +894,7 @@ def all_students(request):
         pred_endterm_map[sid]   = pet_map.get(sid, False)
         actual_midterm_map[sid] = _get_midterm_score(sid, semester)
         actual_endterm_map[sid] = _get_endterm_score(sid, semester)
+        att_map[sid] = _f(m['overall_att_pct']) or False
 
     return Response({
         'student_map':              student_map,
@@ -903,6 +905,7 @@ def all_students(request):
         'actual_midterm_score':     actual_midterm_map,
         'predicted_endterm_score':  pred_endterm_map,
         'actual_endterm_score':     actual_endterm_map,
+        'overall_att_pct': att_map
     })
 
 

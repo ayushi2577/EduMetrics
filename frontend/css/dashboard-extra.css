@@ -108,3 +108,29 @@
 .stat-card:hover {
   transform: translateY(-3px);
 }
+
+.lw-scroll-frame {
+  height: 340px;
+  overflow-y: scroll;
+  overflow-x: hidden;
+  scroll-snap-type: y mandatory;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 14px;
+}
+
+.lw-scroll-frame .lw-flag-grid {
+  display: flex !important;
+  flex-direction: column;
+  gap: 0;
+}
+.lw-scroll-frame .lw-flag-card {
+  flex-shrink: 0;
+  height: 340px;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  border-radius: 14px;
+  min-height: unset !important;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
