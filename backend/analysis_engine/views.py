@@ -17,7 +17,7 @@
 
   INTERVENTIONS
     GET  interventions/?class_id=X&semester=Y&sem_week=Z
-    POST interventions/log/                                           (body: flag_id, intervention, timestamp)
+    POST interventions/log/                                           (body: flag_id, intervention)
 
   FLAGS
     GET  flags/weekly/?class_id=X&semester=Y&sem_week=Z
@@ -370,13 +370,12 @@ def interventions_list(request):
 def log_intervention(request):
     """
     POST /api/analysis/interventions/log/
-    Body: { flag_id, intervention, timestamp }
+    Body: { flag_id, intervention}
 
     Writes into intervention_log table and returns the saved record id.
     """
     flag_id      = request.data.get('flag_id')
     intervention = request.data.get('intervention', '')
-    timestamp    = request.data.get('timestamp')
 
     if not flag_id:
         return Response({'error': 'flag_id is required'}, status=400)
@@ -458,6 +457,7 @@ def weekly_flags_view(request):
         m = metrics_map.get(sid)
 
         result[f'flag{i}'] = {
+            'id':flag.id,
             'student_id':       sid,
             'student_name':     names.get(sid, sid),
             'risk_tier':        flag.risk_tier,
