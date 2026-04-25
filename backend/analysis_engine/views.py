@@ -391,7 +391,6 @@ def log_intervention(request):
         student_id=flag_obj.student_id,
         semester=flag_obj.semester,
         sem_week=flag_obj.sem_week,
-        escalation_level=flag_obj.escalation_level,
         notes=intervention,
         trigger_diagnosis=flag_obj.diagnosis,
         advisor_notified=True,

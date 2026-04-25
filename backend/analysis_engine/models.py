@@ -276,7 +276,6 @@ class intervention_log(models.Model):
         return (
             f"InterventionLog for {self.student_id} | "
             f"sem={self.semester} week={self.sem_week} "
-            f"level={self.escalation_level}"
         )
 
 InterventionLog = intervention_log
