@@ -67,18 +67,16 @@
         <div class="sub-header-welcome">Welcome Back, <strong class="advisor-name">…</strong></div>
         <div class="sub-header-badges">
           <span class="week-badge" id="weekBadge">Week -</span>
-          <span class="sem-badge">Semester 2</span>
+          <span class="sem-badge" id="semBadge">Semester 2</span>
         </div>
       </div>
       <div class="week-selector">
         <label for="weekSelect">Week:</label>
-        <select id="weekSelect" onchange="changeWeek(this.value)">
-          <option value="1">Week 1</option><option value="2">Week 2</option><option value="3">Week 3</option>
-          <option value="4">Week 4</option><option value="5">Week 5</option><option value="6">Week 6</option>
-          <option value="7">Week 7</option><option value="8">Week 8</option><option value="9" selected>Week 9</option>
-          <option value="10">Week 10</option><option value="11">Week 11</option><option value="12">Week 12</option>
-          <option value="13">Week 13</option><option value="14">Week 14</option>
-        </select>
+        <div class="week-selector">
+          <select id="weekSelect" onchange="changeWeek(this.value)">
+          <!-- populated dynamically by script.js -->
+          </select>
+        </div>
       </div>
     </div>
 

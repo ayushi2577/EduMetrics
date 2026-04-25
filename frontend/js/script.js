@@ -30,11 +30,26 @@ document.addEventListener('DOMContentLoaded', async () => {
   ADVISOR_NAME = info.advisor_name || 'Harcoded advisor';
   SEMESTER = info.semester || 1;
   currentWeek = info.sem_week || 1;
+  
+  // ── Build week dropdown dynamically up to currentWeek ──
+  const weekSelect = document.getElementById('weekSelect');
+  if (weekSelect) {
+    weekSelect.innerHTML = '';
+    for (let w = 1; w <= currentWeek; w++) {
+      const opt = document.createElement('option');
+      opt.value = w;
+      opt.textContent = 'Week ' + w;
+      if (w === currentWeek) opt.selected = true;
+      weekSelect.appendChild(opt);
+    }
+  }
 
   const weekBadge = document.getElementById('weekBadge');
   if (weekBadge) weekBadge.textContent = 'Week ' + currentWeek;
   const flaggedWeekSub = document.getElementById('flaggedWeekSub');
   if (flaggedWeekSub) flaggedWeekSub.textContent = 'Week ' + currentWeek + ' · Semester ' + SEMESTER;
+  const semBadge = document.getElementById('semBadge');
+  if (semBadge) semBadge.textContent='Semester'+SEMESTER
 
   document.querySelectorAll('.advisor-name').forEach(el => el.textContent = ADVISOR_NAME);
   document.querySelectorAll('.advisor-avatar').forEach(el => {
