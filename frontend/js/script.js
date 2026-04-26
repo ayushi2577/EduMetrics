@@ -908,23 +908,111 @@ function mailParents() { if (!currentStudent) return; alert(`📧 Email sent to 
 // No separate _analyticsCache needed here — just call the fetch functions directly.
 
 async function initAnalyticsPage() {
-  requestAnimationFrame(() => requestAnimationFrame(() => buildPreMidtermCharts()));
+  const w = currentWeek;
+  const noDataEl = document.getElementById('anlNoData');
+  const midtermSection = document.getElementById('anl-main-midterm');
+  const endtermSection = document.getElementById('anl-main-endterm');
+  const midtermTopBtn  = document.getElementById('atop-midterm');
+  const endtermTopBtn  = document.getElementById('atop-endterm');
+  const postMidTab     = document.getElementById('atgl-post');
+  const postMidSection = document.getElementById('anl-post');
+
+  if (noDataEl)       noDataEl.style.display       = 'none';
+  if (midtermSection) { midtermSection.style.display = ''; midtermSection.classList.remove('active'); }
+  if (endtermSection) { endtermSection.style.display = ''; endtermSection.classList.remove('active'); }
+  if (midtermTopBtn)  { midtermTopBtn.style.display  = ''; midtermTopBtn.classList.remove('active'); }
+  if (endtermTopBtn)  { endtermTopBtn.style.display  = ''; endtermTopBtn.classList.remove('active'); }
+  if (postMidTab)     postMidTab.style.display      = '';
+  if (postMidSection) postMidSection.style.display  = '';
+  const postEndTab     = document.getElementById('atgl-post-end');
+  const postEndSection = document.getElementById('anl-post-end');
+  if (w < 17) {
+    if (postEndTab)     postEndTab.style.display     = 'none';
+    if (postEndSection) postEndSection.style.display = 'none';
+  } else {
+    if (postEndTab)     postEndTab.style.display     = '';
+    if (postEndSection) postEndSection.style.display = '';
+  }
+
+  if (w < 6) {
+    if (midtermSection) midtermSection.style.display = 'none';
+    if (endtermSection) endtermSection.style.display = 'none';
+    if (noDataEl) {
+      noDataEl.style.display = 'flex';
+      noDataEl.querySelector('span').textContent = `Analytics reports unlock from Week 6. You are on Week ${w}.`;
+    }
+    return;
+  }
+
+  if (w >= 16) {
+    // Hide midterm section completely
+    if (midtermSection) { midtermSection.style.display = 'none'; midtermSection.classList.remove('active'); }
+    if (endtermSection) { endtermSection.style.display = ''; endtermSection.classList.add('active'); }
+    document.querySelectorAll('.atop-btn').forEach(b => b.classList.remove('active'));
+    if (endtermTopBtn) endtermTopBtn.classList.add('active');
+
+    if (w >= 17) {
+      setEndtermView('post');
+    } else {
+      setEndtermView('pre');
+    }
+    return;
+  }
+
+  // Weeks 6–15: midterm phase
+  if (endtermSection) endtermSection.style.display = 'none';
+  if (endtermTopBtn)  endtermTopBtn.style.display  = 'none';
+  document.querySelectorAll('.atop-btn').forEach(b => b.classList.remove('active'));
+  if (midtermSection) midtermSection.classList.add('active');
+  if (midtermTopBtn)  midtermTopBtn.classList.add('active');
+
+  // Post-midterm tab only from week 10
+  if (w < 10) {
+    if (postMidTab)     postMidTab.style.display     = 'none';
+    if (postMidSection) postMidSection.style.display = 'none';
+  }
+
+  // "Published N weeks ago" badge for weeks > 7
+  const badge = document.getElementById('anlPreMidPublishedBadge');
+  if (badge) {
+    if (w > 7) {
+      const weeksAgo = w - 7;
+      badge.textContent = `Published ${weeksAgo} week${weeksAgo > 1 ? 's' : ''} ago`;
+      badge.style.display = 'inline-flex';
+    } else {
+      badge.style.display = 'none';
+    }
+  }
+
+  if (w >= 10) {
+    setMidtermView('post');
+  } else {
+    setMidtermView('pre');
+  }
 }
 
 function setAnalyticsMain(section) {
-  document.querySelectorAll('.analytics-main-section').forEach(s => s.classList.remove('active'));
-  document.getElementById('anl-main-' + section).classList.add('active');
+  if (section === 'endterm' && currentWeek < 16) return;
+  document.querySelectorAll('.analytics-main-section').forEach(s => {
+    s.classList.remove('active');
+    s.style.display = 'none';
+  });
+  const target = document.getElementById('anl-main-' + section);
+  if (target) { target.style.display = ''; target.classList.add('active'); }
   document.querySelectorAll('.atop-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById('atop-' + section).classList.add('active');
+  const btn = document.getElementById('atop-' + section);
+  if (btn) btn.classList.add('active');
   if (section === 'midterm') requestAnimationFrame(() => requestAnimationFrame(buildMidtermCharts));
   if (section === 'endterm') requestAnimationFrame(() => requestAnimationFrame(buildEndtermCharts));
 }
 function setMidtermView(v) {
+  if (v === 'post' && currentWeek < 10) return;
   ['pre', 'post'].forEach(x => { document.getElementById('anl-' + x).classList.toggle('active', x === v); document.getElementById('atgl-' + x).classList.toggle('active', x === v); });
   if (v === 'pre') requestAnimationFrame(() => requestAnimationFrame(buildPreMidtermCharts));
   if (v === 'post') requestAnimationFrame(() => requestAnimationFrame(buildPostMidtermCharts));
 }
 function setEndtermView(v) {
+  if (v === 'post' && currentWeek < 17) return;
   ['pre', 'post'].forEach(x => { document.getElementById('anl-' + x + '-end').classList.toggle('active', x === v); document.getElementById('atgl-' + x + '-end').classList.toggle('active', x === v); });
   if (v === 'pre') requestAnimationFrame(() => requestAnimationFrame(buildPreEndtermCharts));
   if (v === 'post') setTimeout(buildPostEndtermCharts, 30);
@@ -941,15 +1029,19 @@ function distToArray(dist) {
 
 // These all return from api.js cache instantly on repeat calls.
 async function getPreMidtermData() {
+  if (currentWeek < 6)  return null;
   try { return await fetchPreMidtermReport(CLASS_ID, SEMESTER); } catch { return null; }
 }
 async function getPostMidtermData() {
+  if (currentWeek < 10) return null;
   try { return await fetchPostMidtermReport(CLASS_ID, SEMESTER); } catch { return null; }
 }
 async function getPreEndtermData() {
+  if (currentWeek < 16) return null;
   try { return await fetchPreEndtermReport(CLASS_ID, SEMESTER); } catch { return null; }
 }
 async function getPostEndtermData() {
+  if (currentWeek < 17) return null;
   try { return await fetchPostEndtermReport(CLASS_ID, SEMESTER); } catch { return null; }
 }
 

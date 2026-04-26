@@ -279,6 +279,10 @@
         <div class="page-header-sub">Pre & Post exam performance analysis — Midterm & End Term</div>
       </div>
     </div>
+    <div id="anlNoData" style="display:none;align-items:center;justify-content:center;padding:80px 20px;color:var(--txt3);font-size:14px;font-weight:600;text-align:center;flex-direction:column;gap:12px">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity:0.4"><circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01"/></svg>
+      <span></span>
+    </div>
     <div class="analytics-content">
 
       <!-- ── MIDTERM SECTION ── -->
@@ -302,7 +306,10 @@
 
         <!-- PRE MID-TERM -->
         <div id="anl-pre" class="analytics-sub-section active">
-          <div class="anl-q-heading">How is the class predicted to score?</div>
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:4px">
+            <div class="anl-q-heading" style="margin:0">How is the class predicted to score?</div>
+            <span id="anlPreMidPublishedBadge" style="display:none;background:var(--amber-bg);color:var(--amber);border:1px solid var(--amber-border);border-radius:20px;font-size:10px;font-weight:700;padding:3px 10px;letter-spacing:0.04em"></span>
+          </div>
           <div class="anl-q-sub">Predicted score distribution before the midterm exam</div>
 
           <div class="anl-hero-layout">
