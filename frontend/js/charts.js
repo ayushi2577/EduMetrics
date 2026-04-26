@@ -361,24 +361,6 @@ function _buildPreEndtermCharts() {
       }
     });
   }
-
-  if (preEndTrendChartInst) { preEndTrendChartInst.destroy(); preEndTrendChartInst = null }
-  const c2 = document.getElementById('preEndTrendChart'); if (c2) {
-    preEndTrendChartInst = new Chart(c2, {
-      type: 'line', data: {
-        labels: ['W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8', 'W9', 'W10', 'W11', 'W12'],
-        datasets: [
-          { label: 'Avg Academic Performance', data: [72, 70, 68, 65, 62, 60, 58, 57, 56, 54, 53, 52], borderColor: '#d29922', backgroundColor: 'rgba(210,153,34,0.08)', borderWidth: 2.5, tension: 0.35, fill: true, pointRadius: 3, pointHoverRadius: 6 },
-          { label: 'Class Target', data: [65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65], borderColor: 'rgba(63,185,80,0.6)', borderWidth: 1.5, borderDash: [5, 4], pointRadius: 0, fill: false }
-        ]
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { display: true, labels: { color: tc, font: { size: 10, family: 'DM Sans' }, boxWidth: 10, usePointStyle: true } }, tooltip: tip },
-        scales: { x: { grid: { color: gc }, ticks: { color: tc, font: { size: 10 } } }, y: { grid: { color: gc }, ticks: { color: tc, font: { size: 10 } }, min: 30, max: 100, title: { display: true, text: 'Performance (%)', color: tc, font: { size: 10 } } } }
-      }
-    });
-  }
 }
 
 // Post-End Term
@@ -411,24 +393,8 @@ function _buildPostEndtermCharts() {
     });
   }
 
-  if (postEndSubjectChartInst) { postEndSubjectChartInst.destroy(); postEndSubjectChartInst = null }
-  const c2 = document.getElementById('postEndSubjectChart'); if (c2) {
-    postEndSubjectChartInst = new Chart(c2, {
-      type: 'radar', data: {
-        labels: ['Data Structures', 'Algorithms', 'OS', 'DBMS', 'Computer Networks'],
-        datasets: [
-          { label: 'Class Average', data: [68, 62, 55, 70, 58], borderColor: '#58a6ff', backgroundColor: 'rgba(88,166,255,0.12)', borderWidth: 2, pointBackgroundColor: '#58a6ff', pointRadius: 4 },
-          { label: 'Top Performers', data: [88, 85, 80, 90, 82], borderColor: '#3fb950', backgroundColor: 'rgba(63,185,80,0.08)', borderWidth: 2, pointBackgroundColor: '#3fb950', pointRadius: 4 }
-        ]
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { display: true, labels: { color: tc, font: { size: 10, family: 'DM Sans' }, boxWidth: 10, usePointStyle: true } }, tooltip: tip },
-        scales: { r: { grid: { color: gc }, ticks: { color: tc, font: { size: 9 }, backdropColor: 'transparent' }, pointLabels: { color: tc, font: { size: 10 } }, min: 0, max: 100 } }
-      }
-    });
   }
-}
+
 
 // Master orchestrators (called from script.js)
 function buildMidtermCharts() {
