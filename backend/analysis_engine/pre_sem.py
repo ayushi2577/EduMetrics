@@ -189,53 +189,34 @@ def _pull_student_features(completed_semester):
 
 def _compute_and_cache_subject_difficulty(completed_semester):
     """
-    Compute pass-rate per subject from the completed semester's endterm results
-    in the client DB. Upserts into SubjectDifficulty (analysis DB).
+    Reads difficulty directly from ClientSubject.difficulty for next semester's subjects.
+    Writes results to SubjectDifficulty (analysis DB).
     Returns: { subject_id → difficulty_label }
     """
-    sched_qs = ClientExamSchedule.objects.using('client_db').filter(
-        exam_type='endterm',
-        # semester=completed_semester,  # uncomment if schema has semester column
-    ).values('schedule_id', 'subject_id')
-    sched_map = {s['schedule_id']: s['subject_id'] for s in sched_qs}
+    subj_qs = ClientSubject.objects.using('client_db').filter(
+        semester=completed_semester + 1
+    ).values('subject_id', 'difficulty')
 
-    if not sched_map:
-        print("  [pre_sem] No endterm schedules found — skipping subject difficulty.")
+    if not subj_qs.exists():
+        print("  [pre_sem] No subjects found for next semester — skipping subject difficulty.")
         return {}
 
-    result_qs = ClientExamResult.objects.using('client_db').filter(
-        schedule_id__in=list(sched_map.keys()),
-        score_pct__isnull=False,
-    ).values('schedule_id', 'score_pct')
-
-    # Aggregate per subject
-    subject_scores = {}
-    for r in result_qs:
-        subj = sched_map[r['schedule_id']]
-        subject_scores.setdefault(subj, {'total': 0, 'passed': 0})
-        subject_scores[subj]['total'] += 1
-        if float(r['score_pct']) >= 40:
-            subject_scores[subj]['passed'] += 1
-
     difficulty_map = {}
-    for subj, counts in subject_scores.items():
-        total  = counts['total']
-        passed = counts['passed']
-        rate   = (passed / total) if total > 0 else 1.0
+    for s in subj_qs:
+        raw = (s['difficulty'] or 'medium').lower()
+        if   'hard' in raw: label = 'hard'
+        elif 'easy' in raw: label = 'easy'
+        else:               label = 'medium'
 
-        if   rate < HARD_PASS_RATE_THRESHOLD: label = 'hard'
-        elif rate < 0.80:                     label = 'medium'
-        else:                                 label = 'easy'
-
-        difficulty_map[subj] = label
+        difficulty_map[s['subject_id']] = label
 
         SubjectDifficulty.objects.update_or_create(
-            subject_id=subj,
+            subject_id=s['subject_id'],
             semester=completed_semester,
             defaults={
-                'total_students':   total,
-                'students_passed':  passed,
-                'pass_rate':        round(rate, 4),
+                'total_students':   0,
+                'students_passed':  0,
+                'pass_rate':        1.0 if label == 'easy' else (0.7 if label == 'medium' else 0.5),
                 'difficulty_label': label,
             }
         )
@@ -243,7 +224,6 @@ def _compute_and_cache_subject_difficulty(completed_semester):
     hard_count = sum(1 for v in difficulty_map.values() if v == 'hard')
     print(f"  [pre_sem] Subject difficulty cached — {len(difficulty_map)} subjects, {hard_count} hard.")
     return difficulty_map
-
 
 def _count_hard_subjects_per_student(next_semester, difficulty_map):
     """
