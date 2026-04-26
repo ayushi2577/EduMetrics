@@ -35,7 +35,6 @@ from analysis_engine.client_models import (
 # These must exist in analysis_engine/models.py
 from analysis_engine.models import (
     WeeklyMetrics,
-    InterventionLog,
     SubjectDifficulty,
     PreSemWatchlist,
 )
@@ -160,20 +159,16 @@ def _pull_student_features(completed_semester):
     df['exam_avg'] = pd.to_numeric(df['exam_avg'], errors='coerce')
 
     # ── C. Escalation level (analysis DB — latest row per student) ────────────
-    from django.db.models import Max as DMax2
-    latest = (
-        InterventionLog.objects
-        .values('student_id')
-        .annotate(latest=DMax2('logged_at'))
+    esc_qs = (
+        WeeklyMetrics.objects
+        .filter(semester=completed_semester)
+        .order_by('student_id', '-sem_week')
+        .values('student_id', 'escalation_level')
     )
     esc_map = {}
-    for entry in latest:
-        row = InterventionLog.objects.filter(
-            student_id=entry['student_id'],
-            logged_at=entry['latest']
-        ).first()
-        if row:
-            esc_map[row.student_id] = row.escalation_level
+    for row in esc_qs:
+        if row['student_id'] not in esc_map:   # first row = latest week
+            esc_map[row['student_id']] = row['escalation_level'] or 0
 
     df['escalation_level'] = df['student_id'].map(esc_map).fillna(0).astype(int)
 
