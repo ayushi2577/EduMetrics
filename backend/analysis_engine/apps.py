@@ -5,6 +5,6 @@ class AnalysisEngineConfig(AppConfig):
 
     def ready(self):
         from .calibrate_analysis_db import calibrate
-        calibrate()  
+        # calibrate()  
         from accounts.addingdata import sync
         sync()

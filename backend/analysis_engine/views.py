@@ -158,18 +158,17 @@ def _build_factors(diagnosis: str, urgency_score: int):
 
 
 def _get_midterm_score(student_id, semester):
-    """Return actual midterm score from ClientExamResult, or False if unavailable."""
     if not HAS_CLIENT_DB:
         return False
     try:
         schedule = ClientExamSchedule.objects.using('client_db').filter(
-            exam_type='MIDTERM', semester=semester
+            exam_type='MIDTERM'
         ).first()
         if not schedule:
             return False
         result = ClientExamResult.objects.using('client_db').filter(
             student_id=student_id,
-            exam_id=schedule.exam_id,
+            schedule_id=schedule.schedule_id,
         ).first()
         return _f(result.score_pct) if result else False
     except Exception:
@@ -177,23 +176,21 @@ def _get_midterm_score(student_id, semester):
 
 
 def _get_endterm_score(student_id, semester):
-    """Return actual endterm score from ClientExamResult, or False if unavailable."""
     if not HAS_CLIENT_DB:
         return False
     try:
         schedule = ClientExamSchedule.objects.using('client_db').filter(
-            exam_type='ENDTERM', semester=semester
+            exam_type='ENDTERM'
         ).first()
         if not schedule:
             return False
         result = ClientExamResult.objects.using('client_db').filter(
             student_id=student_id,
-            exam_id=schedule.exam_id,
+            schedule_id=schedule.schedule_id,
         ).first()
         return _f(result.score_pct) if result else False
     except Exception:
         return False
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  1. DASHBOARD  — get_dashboard_stats  +  class_summary (AI)

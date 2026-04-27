@@ -320,21 +320,18 @@
               </div>
               <div style="height:260px"><canvas id="preDistChart"></canvas></div>
             </div>
-            <div class="anl-hero-stats">
+            <div class="anl-hero-stats" id="preMidtermStatsSummary">
               <div class="anl-big-stat-card">
                 <div class="anl-big-stat-label">MEAN PREDICTED SCORE</div>
-                <div class="anl-big-stat-val" style="color:var(--accent2)">67.4%</div>
-                <div class="anl-big-stat-sub">out of 100%</div>
+                <div class="anl-big-stat-val" style="color:var(--accent2)">—</div>
               </div>
               <div class="anl-big-stat-card">
                 <div class="anl-big-stat-label">STD DEVIATION</div>
-                <div class="anl-big-stat-val" style="color:var(--purple)">±14.2</div>
-                <div class="anl-big-stat-sub">spread around mean</div>
+                <div class="anl-big-stat-val" style="color:var(--purple)">—</div>
               </div>
               <div class="anl-big-stat-card">
                 <div class="anl-big-stat-label">MODE (MOST LIKELY SCORE)</div>
-                <div class="anl-big-stat-val" style="color:var(--green)">71–80%</div>
-                <div class="anl-big-stat-sub">range most students predicted in</div>
+                <div class="anl-big-stat-val" style="color:var(--green)">—</div>
               </div>
             </div>
           </div>
@@ -343,13 +340,13 @@
             <div class="anl-percentile-card anl-percentile-bottom">
               <div class="anl-pct-title">Bottom 20% of the Class</div>
               <div class="anl-pct-sub">How bad are our worst students?</div>
-              <div class="anl-pct-range anl-pct-range-red">32–46%</div>
+              <div class="anl-pct-range anl-pct-range-red" id="preMidBot">—</div>
               <div class="anl-pct-desc">Predicted score range (8 students)</div>
             </div>
             <div class="anl-percentile-card anl-percentile-top">
               <div class="anl-pct-title">Top 20% of the Class</div>
               <div class="anl-pct-sub">How good are our best students?</div>
-              <div class="anl-pct-range anl-pct-range-green">85–96%</div>
+              <div class="anl-pct-range anl-pct-range-green" id="preMidTop">—</div>
               <div class="anl-pct-desc">Predicted score range (8 students)</div>
             </div>
           </div>
@@ -362,16 +359,10 @@
             <table class="anl-watchlist-table">
               <thead>
                 <tr>
-                  <th>STUDENT NAME</th><th>ID</th><th>REASON FOR CONCERN</th><th>PREDICTED SCORE</th><th>RISK LEVEL</th>
+                  <th>STUDENT NAME</th><th>ID</th><th>PREDICTED SCORE</th><th>RISK LEVEL</th>
                 </tr>
               </thead>
-              <tbody>
-                <tr><td class="anl-wl-name">Rahul Gupta</td><td>STU2024005</td><td>No activity 10+ days, unreachable</td><td class="anl-wl-score red">40%</td><td><span class="anl-risk-pill risk-critical">Critical</span></td></tr>
-                <tr><td class="anl-wl-name">Karan Joshi</td><td>STU2024002</td><td>Failing 2 modules, zero quiz submissions</td><td class="anl-wl-score red">54%</td><td><span class="anl-risk-pill risk-high">High</span></td></tr>
-                <tr><td class="anl-wl-name">Aryan Mehta</td><td>STU2024001</td><td>Low attendance, 5 missed assignments</td><td class="anl-wl-score amber">62%</td><td><span class="anl-risk-pill risk-high">High</span></td></tr>
-                <tr><td class="anl-wl-name">Tanya Singh</td><td>STU2024004</td><td>Steady 6-week decline, possible burnout</td><td class="anl-wl-score amber">64%</td><td><span class="anl-risk-pill risk-moderate">Moderate</span></td></tr>
-                <tr><td class="anl-wl-name">Riya Kapoor</td><td>STU2024003</td><td>Attendance below 65% for 3 weeks</td><td class="anl-wl-score amber">68%</td><td><span class="anl-risk-pill risk-moderate">Moderate</span></td></tr>
-              </tbody>
+              <tbody id="preMidtermWatchlist"></tbody>
             </table>
           </div>
         </div>
@@ -389,21 +380,18 @@
               </div>
               <div style="height:260px"><canvas id="postDistChart"></canvas></div>
             </div>
-            <div class="anl-hero-stats">
+            <div class="anl-hero-stats" id="postMidtermStatsSummary">
               <div class="anl-big-stat-card">
                 <div class="anl-big-stat-label">MEAN OF MIDTERM SCORE</div>
-                <div class="anl-big-stat-val" style="color:var(--accent2)">65.1%</div>
-                <div class="anl-big-stat-sub">↓ 2.3 below prediction</div>
+                <div class="anl-big-stat-val" style="color:var(--accent2)">—</div>
               </div>
               <div class="anl-big-stat-card">
                 <div class="anl-big-stat-label">STD DEVIATION</div>
-                <div class="anl-big-stat-val" style="color:var(--purple)">±16.8</div>
-                <div class="anl-big-stat-sub">wider spread than predicted</div>
+                <div class="anl-big-stat-val" style="color:var(--purple)">—</div>
               </div>
               <div class="anl-big-stat-card">
                 <div class="anl-big-stat-label">MODE (MOST SCORED)</div>
-                <div class="anl-big-stat-val" style="color:var(--green)">61–70%</div>
-                <div class="anl-big-stat-sub">most students landed here</div>
+                <div class="anl-big-stat-val" style="color:var(--green)">—</div>
               </div>
             </div>
           </div>
@@ -412,13 +400,13 @@
             <div class="anl-percentile-card anl-percentile-bottom">
               <div class="anl-pct-title">Bottom 20% of the Class</div>
               <div class="anl-pct-sub">How bad are our worst students?</div>
-              <div class="anl-pct-range anl-pct-range-red">28–42%</div>
+              <div class="anl-pct-range anl-pct-range-red" id="postMidBot">-</div>
               <div class="anl-pct-desc">Actual score range (8 students)</div>
             </div>
             <div class="anl-percentile-card anl-percentile-top">
               <div class="anl-pct-title">Top 20% of the Class</div>
               <div class="anl-pct-sub">How good are our best students?</div>
-              <div class="anl-pct-range anl-pct-range-green">82–94%</div>
+              <div class="anl-pct-range anl-pct-range-green" id="postMidTop">-</div>
               <div class="anl-pct-desc">Actual score range (8 students)</div>
             </div>
           </div>
@@ -428,53 +416,14 @@
               <span>📉</span>
               <span style="color:var(--red)">Students Who Severely Underperformed Expectations</span>
             </div>
-            <div class="anl-gap-cards">
-              <div class="anl-gap-card anl-gap-bad">
-                <div class="anl-gap-name">Divya Rao <span class="anl-gap-roll">CS2210</span></div>
-                <div class="anl-gap-row"><span class="anl-gap-lbl">Predicted Score</span><span class="anl-gap-pred">68%</span></div>
-                <div class="anl-gap-row"><span class="anl-gap-lbl">Actual Score</span><span class="anl-gap-actual red">52%</span></div>
-                <div class="anl-gap-row"><span class="anl-gap-lbl">Gap</span><span class="anl-gap-diff red">-16 pts</span></div>
-              </div>
-              <div class="anl-gap-card anl-gap-bad">
-                <div class="anl-gap-name">Tanya Singh <span class="anl-gap-roll">CS2207</span></div>
-                <div class="anl-gap-row"><span class="anl-gap-lbl">Predicted Score</span><span class="anl-gap-pred">64%</span></div>
-                <div class="anl-gap-row"><span class="anl-gap-lbl">Actual Score</span><span class="anl-gap-actual red">50%</span></div>
-                <div class="anl-gap-row"><span class="anl-gap-lbl">Gap</span><span class="anl-gap-diff red">-14 pts</span></div>
-              </div>
-              <div class="anl-gap-card anl-gap-bad">
-                <div class="anl-gap-name">Aryan Mehta <span class="anl-gap-roll">CS2202</span></div>
-                <div class="anl-gap-row"><span class="anl-gap-lbl">Predicted Score</span><span class="anl-gap-pred">62%</span></div>
-                <div class="anl-gap-row"><span class="anl-gap-lbl">Actual Score</span><span class="anl-gap-actual red">49%</span></div>
-                <div class="anl-gap-row"><span class="anl-gap-lbl">Gap</span><span class="anl-gap-diff red">-13 pts</span></div>
-              </div>
-            </div>
+            <div class="anl-gap-cards" id="postMidtermUnder"></div>
           </div>
-
-          <div class="anl-watchlist-card" style="margin-top:0">
+          <div class="anl-watchlist-card">
             <div class="anl-watchlist-title">
               <span>📈</span>
-              <span style="color:var(--green)">Students Who Outperformed Expectations</span>
+              <span style="color:var(--green)">Students Who  Outperformed Expectations</span>
             </div>
-            <div class="anl-gap-cards">
-              <div class="anl-gap-card anl-gap-good">
-                <div class="anl-gap-name">Rohit Das <span class="anl-gap-roll">CS2211</span></div>
-                <div class="anl-gap-row"><span class="anl-gap-lbl">Predicted Score</span><span class="anl-gap-pred">62%</span></div>
-                <div class="anl-gap-row"><span class="anl-gap-lbl">Actual Score</span><span class="anl-gap-actual green">78%</span></div>
-                <div class="anl-gap-row"><span class="anl-gap-lbl">Gap</span><span class="anl-gap-diff green">+16 pts</span></div>
-              </div>
-              <div class="anl-gap-card anl-gap-good">
-                <div class="anl-gap-name">Neha Verma <span class="anl-gap-roll">CS2209</span></div>
-                <div class="anl-gap-row"><span class="anl-gap-lbl">Predicted Score</span><span class="anl-gap-pred">72%</span></div>
-                <div class="anl-gap-row"><span class="anl-gap-lbl">Actual Score</span><span class="anl-gap-actual green">84%</span></div>
-                <div class="anl-gap-row"><span class="anl-gap-lbl">Gap</span><span class="anl-gap-diff green">+12 pts</span></div>
-              </div>
-              <div class="anl-gap-card anl-gap-good">
-                <div class="anl-gap-name">Karan Joshi <span class="anl-gap-roll">CS2204</span></div>
-                <div class="anl-gap-row"><span class="anl-gap-lbl">Predicted Score</span><span class="anl-gap-pred">54%</span></div>
-                <div class="anl-gap-row"><span class="anl-gap-lbl">Actual Score</span><span class="anl-gap-actual green">64%</span></div>
-                <div class="anl-gap-row"><span class="anl-gap-lbl">Gap</span><span class="anl-gap-diff green">+10 pts</span></div>
-              </div>
-            </div>
+            <div class="anl-gap-cards" id="postMidtermOver"></div>
           </div>
 
         </div>
@@ -512,21 +461,18 @@
               </div>
               <div style="height:260px"><canvas id="preEndChart"></canvas></div>
             </div>
-            <div class="anl-hero-stats">
+            <div class="anl-hero-stats" id="preEndtermStatsSummary">
               <div class="anl-big-stat-card">
                 <div class="anl-big-stat-label">MEAN PREDICTED SCORE</div>
-                <div class="anl-big-stat-val" style="color:var(--accent2)">61.2%</div>
-                <div class="anl-big-stat-sub">end term prediction</div>
+                <div class="anl-big-stat-val" style="color:var(--accent2)">—</div>
               </div>
               <div class="anl-big-stat-card">
                 <div class="anl-big-stat-label">STD DEVIATION</div>
-                <div class="anl-big-stat-val" style="color:var(--purple)">±15.8</div>
-                <div class="anl-big-stat-sub">score spread</div>
+                <div class="anl-big-stat-val" style="color:var(--purple)">—</div>
               </div>
               <div class="anl-big-stat-card">
-                <div class="anl-big-stat-label">DETENTION RISK</div>
-                <div class="anl-big-stat-val" style="color:var(--red)">5</div>
-                <div class="anl-big-stat-sub">students at risk</div>
+                <div class="anl-big-stat-label">MODE (MOST LIKELY SCORE)</div>
+                <div class="anl-big-stat-val" style="color:var(--green)">—</div>
               </div>
             </div>
           </div>
@@ -534,14 +480,14 @@
           <div class="anl-percentile-row">
             <div class="anl-percentile-card anl-percentile-bottom">
               <div class="anl-pct-title">Bottom 20% of the Class</div>
-              <div class="anl-pct-sub">End term worst predictions</div>
-              <div class="anl-pct-range anl-pct-range-red">28–40%</div>
+              <div class="anl-pct-sub">How bad are our worst students?</div>
+              <div class="anl-pct-range anl-pct-range-red" id="preEndBot">—</div>
               <div class="anl-pct-desc">Predicted score range (8 students)</div>
             </div>
             <div class="anl-percentile-card anl-percentile-top">
               <div class="anl-pct-title">Top 20% of the Class</div>
-              <div class="anl-pct-sub">End term best predictions</div>
-              <div class="anl-pct-range anl-pct-range-green">80–94%</div>
+              <div class="anl-pct-sub">How good are our best students?</div>
+              <div class="anl-pct-range anl-pct-range-green" id="preEndTop">—</div>
               <div class="anl-pct-desc">Predicted score range (8 students)</div>
             </div>
           </div>
@@ -554,15 +500,9 @@
               </div>
               <table class="anl-watchlist-table">
                 <thead>
-                  <tr><th>STUDENT NAME</th><th>ID</th><th>REASON FOR CONCERN</th><th>PREDICTED SCORE</th><th>RISK LEVEL</th></tr>
+                  <tr><th>STUDENT NAME</th><th>ID</th><th>PREDICTED SCORE</th><th>RISK LEVEL</th></tr>
                 </thead>
-                <tbody>
-                  <tr><td class="anl-wl-name">Rahul Gupta</td><td>STU2024005</td><td>Continued non-participation</td><td class="anl-wl-score red">25%</td><td><span class="anl-risk-pill risk-critical">Critical</span></td></tr>
-                  <tr><td class="anl-wl-name">Karan Joshi</td><td>STU2024002</td><td>Semester-long disengagement</td><td class="anl-wl-score red">32%</td><td><span class="anl-risk-pill risk-high">High</span></td></tr>
-                  <tr><td class="anl-wl-name">Aryan Mehta</td><td>STU2024001</td><td>Attendance risk — detention likely</td><td class="anl-wl-score amber">38%</td><td><span class="anl-risk-pill risk-high">High</span></td></tr>
-                  <tr><td class="anl-wl-name">Tanya Singh</td><td>STU2024004</td><td>Prolonged score decline, burnout</td><td class="anl-wl-score amber">55%</td><td><span class="anl-risk-pill risk-moderate">Moderate</span></td></tr>
-                  <tr><td class="anl-wl-name">Anjali Nair</td><td>STU2024012</td><td>Below average across all topics</td><td class="anl-wl-score amber">54%</td><td><span class="anl-risk-pill risk-moderate">Moderate</span></td></tr>
-                </tbody>
+                <tbody id="preEndtermWatchlist"></tbody>
               </table>
             </div>
         </div>
@@ -581,21 +521,18 @@
               </div>
               <div style="height:260px"><canvas id="postEndChart"></canvas></div>
             </div>
-            <div class="anl-hero-stats">
+            <div class="anl-hero-stats" id="postEndtermStatsSummary">
               <div class="anl-big-stat-card">
-                <div class="anl-big-stat-label">MEAN ACTUAL SCORE</div>
-                <div class="anl-big-stat-val" style="color:var(--accent2)">59.8%</div>
-                <div class="anl-big-stat-sub">↓ 1.4 below prediction</div>
+                <div class="anl-big-stat-label">MEAN OF ENDTERM SCORE</div>
+                <div class="anl-big-stat-val" style="color:var(--accent2)">—</div>
               </div>
               <div class="anl-big-stat-card">
                 <div class="anl-big-stat-label">STD DEVIATION</div>
-                <div class="anl-big-stat-val" style="color:var(--purple)">±17.2</div>
-                <div class="anl-big-stat-sub">wider than predicted</div>
+                <div class="anl-big-stat-val" style="color:var(--purple)">—</div>
               </div>
               <div class="anl-big-stat-card">
-                <div class="anl-big-stat-label">PASS RATE</div>
-                <div class="anl-big-stat-val" style="color:var(--green)">72.5%</div>
-                <div class="anl-big-stat-sub">29 of 40 students</div>
+                <div class="anl-big-stat-label">MODE (MOST SCORED)</div>
+                <div class="anl-big-stat-val" style="color:var(--green)">—</div>
               </div>
             </div>
           </div>
@@ -604,13 +541,13 @@
             <div class="anl-percentile-card anl-percentile-bottom">
               <div class="anl-pct-title">Bottom 20% of the Class</div>
               <div class="anl-pct-sub">Actual worst performers</div>
-              <div class="anl-pct-range anl-pct-range-red">24–38%</div>
+              <div class="anl-pct-range anl-pct-range-red" id="postEndBot">-</div>
               <div class="anl-pct-desc">Actual score range (8 students)</div>
             </div>
             <div class="anl-percentile-card anl-percentile-top">
               <div class="anl-pct-title">Top 20% of the Class</div>
               <div class="anl-pct-sub">Actual best performers</div>
-              <div class="anl-pct-range anl-pct-range-green">80–92%</div>
+              <div class="anl-pct-range anl-pct-range-green" id="postEndTop">-</div>
               <div class="anl-pct-desc">Actual score range (8 students)</div>
             </div>
           </div>
@@ -620,26 +557,14 @@
               <span>📉</span>
               <span style="color:var(--red)">Students Who Severely Underperformed Expectations</span>
             </div>
-            <div class="anl-gap-cards">
-              <div class="anl-gap-card anl-gap-bad">
-                <div class="anl-gap-name">Aryan Mehta <span class="anl-gap-roll">CS2202</span></div>
-                <div class="anl-gap-row"><span class="anl-gap-lbl">Predicted Score</span><span class="anl-gap-pred">38%</span></div>
-                <div class="anl-gap-row"><span class="anl-gap-lbl">Actual Score</span><span class="anl-gap-actual red">24%</span></div>
-                <div class="anl-gap-row"><span class="anl-gap-lbl">Gap</span><span class="anl-gap-diff red">-14 pts</span></div>
-              </div>
-              <div class="anl-gap-card anl-gap-bad">
-                <div class="anl-gap-name">Tanya Singh <span class="anl-gap-roll">CS2207</span></div>
-                <div class="anl-gap-row"><span class="anl-gap-lbl">Predicted Score</span><span class="anl-gap-pred">55%</span></div>
-                <div class="anl-gap-row"><span class="anl-gap-lbl">Actual Score</span><span class="anl-gap-actual red">43%</span></div>
-                <div class="anl-gap-row"><span class="anl-gap-lbl">Gap</span><span class="anl-gap-diff red">-12 pts</span></div>
-              </div>
-              <div class="anl-gap-card anl-gap-bad">
-                <div class="anl-gap-name">Anjali Nair <span class="anl-gap-roll">CS2212</span></div>
-                <div class="anl-gap-row"><span class="anl-gap-lbl">Predicted Score</span><span class="anl-gap-pred">54%</span></div>
-                <div class="anl-gap-row"><span class="anl-gap-lbl">Actual Score</span><span class="anl-gap-actual red">44%</span></div>
-                <div class="anl-gap-row"><span class="anl-gap-lbl">Gap</span><span class="anl-gap-diff red">-10 pts</span></div>
-              </div>
+            <div class="anl-gap-cards" id="postEndtermUnder"></div>
+          </div>
+          <div class="anl-watchlist-card">
+            <div class="anl-watchlist-title">
+              <span>📈</span>
+              <span style="color:var(--green)">Students Who  Outperformed Expectations</span>
             </div>
+            <div class="anl-gap-cards" id="postEndtermOver"></div>
           </div>
         </div>
       </div>

@@ -1069,6 +1069,8 @@ async function buildPostMidtermCharts() {
   }
   _buildPostMidtermCharts();
   _renderPostMidtermStats(data);
+  _renderPerformerList(data.underperformers, 'postMidtermUnder', 'underperformers');
+_renderPerformerList(data.outperformers,   'postMidtermOver',  'outperformers');
 }
 
 async function buildPreEndtermCharts() {
@@ -1088,55 +1090,84 @@ async function buildPostEndtermCharts() {
     window._postEndtermActualData = DIST_KEYS.map(k => dist[k]?.actual_number_of_students || 0);
   }
   _buildPostEndtermCharts();
+  _renderPostEndtermStats(data);
+  _renderPerformerList(data.underperformers, 'postEndtermUnder', 'underperformers');
+  _renderPerformerList(data.outperformers,   'postEndtermOver',  'outperformers');
 }
 
 // ── ANALYTICS STAT RENDERERS ──────────────────────────────────────────────────
 
 function _renderPreMidtermStats(data) {
   if (!data) return;
+  const set = (id, val) => { const e = document.getElementById(id); if (e) e.textContent = val; };
   const el = document.getElementById('preMidtermStatsSummary');
-  if (!el) return;
-  el.innerHTML = `
-    <div class="anl-stat-row"><span>Mean Predicted Score</span><strong>${data.mean_predicted_score}%</strong></div>
-    <div class="anl-stat-row"><span>Std Deviation</span><strong>${data.standard_deviation}</strong></div>
-    <div class="anl-stat-row"><span>Top 20%</span><strong style="color:var(--green)">${data.top20_pct}%</strong></div>
-    <div class="anl-stat-row"><span>Bottom 20%</span><strong style="color:var(--red)">${data.bottom20_pct}%</strong></div>`;
+  if (el) el.innerHTML = `
+    <div class="anl-big-stat-card"><div class="anl-big-stat-label">MEAN PREDICTED SCORE</div><div class="anl-big-stat-val" style="color:var(--accent2)">${data.mean_predicted_score}%</div></div>
+    <div class="anl-big-stat-card"><div class="anl-big-stat-label">STD DEVIATION</div><div class="anl-big-stat-val" style="color:var(--purple)">±${data.standard_deviation}</div></div>
+    <div class="anl-big-stat-card"><div class="anl-big-stat-label">MODE (MOST LIKELY SCORE)</div><div class="anl-big-stat-val" style="color:var(--green)">${data.mode_marks ?? '—'}</div></div>`;
+  set('preMidBot', data.bottom20_pct != null ? data.bottom20_pct + '%' : '—');
+  set('preMidTop', data.top20_pct    != null ? data.top20_pct    + '%' : '—');
   _renderWatchlist(data.watchlist, 'preMidtermWatchlist');
 }
 
 function _renderPostMidtermStats(data) {
   if (!data) return;
+  const set = (id, val) => { const e = document.getElementById(id); if (e) e.textContent = val; };
   const el = document.getElementById('postMidtermStatsSummary');
-  if (!el) return;
-  el.innerHTML = `
-    <div class="anl-stat-row"><span>Avg Score</span><strong>${data.avg_score}%</strong></div>
-    <div class="anl-stat-row"><span>Std Deviation</span><strong>${data.standard_deviation}</strong></div>
-    <div class="anl-stat-row"><span>Top 20%</span><strong style="color:var(--green)">${data.top20_pct}%</strong></div>
-    <div class="anl-stat-row"><span>Bottom 20%</span><strong style="color:var(--red)">${data.bottom20_pct}%</strong></div>`;
-  _renderPerformerList(data.underperformers, 'postMidtermUnder', 'Underperformers');
-  _renderPerformerList(data.outperformers, 'postMidtermOver', 'Outperformers');
+  if (el) el.innerHTML = `
+    <div class="anl-big-stat-card"><div class="anl-big-stat-label">MEAN OF MIDTERM SCORE</div><div class="anl-big-stat-val" style="color:var(--accent2)">${data.avg_score}%</div></div>
+    <div class="anl-big-stat-card"><div class="anl-big-stat-label">STD DEVIATION</div><div class="anl-big-stat-val" style="color:var(--purple)">±${data.standard_deviation}</div></div>
+    <div class="anl-big-stat-card"><div class="anl-big-stat-label">MODE (MOST SCORED)</div><div class="anl-big-stat-val" style="color:var(--green)">${data.mode_score ?? '—'}</div></div>`;
+  set('postMidBot', data.bottom20_pct != null ? data.bottom20_pct + '%' : '—');
+  set('postMidTop', data.top20_pct    != null ? data.top20_pct    + '%' : '—');
+  _renderPerformerList(data.underperformers, 'postMidtermUnder', 'underperformers');
+  _renderPerformerList(data.outperformers,   'postMidtermOver',  'outperformers');
 }
 
 function _renderPreEndtermStats(data) {
   if (!data) return;
+  const set = (id, val) => { const e = document.getElementById(id); if (e) e.textContent = val; };
   const el = document.getElementById('preEndtermStatsSummary');
-  if (!el) return;
-  el.innerHTML = `
-    <div class="anl-stat-row"><span>Mean Predicted Score</span><strong>${data.mean_predicted_score || data.mean_predicted_endterm_score || '—'}%</strong></div>
-    <div class="anl-stat-row"><span>Std Deviation</span><strong>${data.standard_deviation}</strong></div>
-    <div class="anl-stat-row"><span>Top 20%</span><strong style="color:var(--green)">${data.top20_pct}%</strong></div>
-    <div class="anl-stat-row"><span>Bottom 20%</span><strong style="color:var(--red)">${data.bottom20_pct}%</strong></div>`;
+  if (el) el.innerHTML = `
+    <div class="anl-big-stat-card"><div class="anl-big-stat-label">MEAN PREDICTED SCORE</div><div class="anl-big-stat-val" style="color:var(--accent2)">${data.mean_predicted_score}%</div></div>
+    <div class="anl-big-stat-card"><div class="anl-big-stat-label">STD DEVIATION</div><div class="anl-big-stat-val" style="color:var(--purple)">±${data.standard_deviation}</div></div>
+    <div class="anl-big-stat-card"><div class="anl-big-stat-label">MODE</div><div class="anl-big-stat-val" style="color:var(--green)">${data.mode_marks ?? '—'}</div></div>`;
+  set('preEndBot', data.bottom20_pct != null ? data.bottom20_pct + '%' : '—');
+  set('preEndTop', data.top20_pct    != null ? data.top20_pct    + '%' : '—');
   _renderWatchlist(data.watchlist, 'preEndtermWatchlist');
+}
+
+function _renderPostEndtermStats(data) {
+  if (!data) return;
+  const set = (id, val) => { const e = document.getElementById(id); if (e) e.textContent = val; };
+  const el = document.getElementById('postEndtermStatsSummary');
+  if (el) el.innerHTML = `
+    <div class="anl-big-stat-card"><div class="anl-big-stat-label">MEAN ACTUAL SCORE</div><div class="anl-big-stat-val" style="color:var(--accent2)">${data.avg_score}%</div></div>
+    <div class="anl-big-stat-card"><div class="anl-big-stat-label">STD DEVIATION</div><div class="anl-big-stat-val" style="color:var(--purple)">±${data.standard_deviation}</div></div>
+    <div class="anl-big-stat-card"><div class="anl-big-stat-label">MODE (MOST SCORED)</div><div class="anl-big-stat-val" style="color:var(--green)">${data.mode_score ?? '—'}</div></div>`;
+  set('postEndBot', data.bottom20_pct != null ? data.bottom20_pct + '%' : '—');
+  set('postEndTop', data.top20_pct    != null ? data.top20_pct    + '%' : '—');
+  _renderPerformerList(data.underperformers, 'postEndtermUnder', 'underperformers');
+  _renderPerformerList(data.outperformers,   'postEndtermOver',  'outperformers');
 }
 
 function _renderWatchlist(watchlist, elId) {
   const el = document.getElementById(elId);
   if (!el || !watchlist) return;
   const entries = Object.entries(watchlist);
-  if (!entries.length) { el.innerHTML = '<div style="color:var(--txt3);font-size:12px">No students on watchlist</div>'; return; }
-  el.innerHTML = entries.map(([sid, [name, reason, score, riskLvl]]) => {
+  if (!entries.length) {
+    el.innerHTML = '<tr><td colspan="5" style="color:var(--txt3);font-size:12px;padding:12px">No students on watchlist</td></tr>';
+    return;
+  }
+  el.innerHTML = entries.map(([sid, [name, reason,score, riskLvl]]) => {
+    const scoreColor = score < 50 ? 'var(--red)' : score < 65 ? 'var(--amber)' : 'inherit';
     const r = rc(riskLvl || 'med');
-    return `<div class="wl-row"><div class="wl-id">${sid}</div><div class="wl-name">${name}</div><div class="wl-score" style="color:${score < 50 ? 'var(--red)' : 'var(--amber)'}"><strong>${score}%</strong></div><span class="wl-risk" style="background:${r.bg};color:${r.txt};font-size:9.5px;padding:2px 7px;border-radius:8px;font-weight:700">${r.label}</span></div>`;
+    return `<tr>
+      <td class="anl-wl-name">${name}</td>
+      <td>${sid}</td>
+      <td class="anl-wl-score" style="color:${scoreColor}">${score}%</td>
+      <td><span class="anl-risk-pill" style="background:${r.bg};color:${r.txt}">${r.label}</span></td>
+    </tr>`;
   }).join('');
 }
 

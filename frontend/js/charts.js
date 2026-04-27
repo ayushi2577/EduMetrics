@@ -234,9 +234,6 @@ function buildStuDetQuadChart(s) {
 }
 
 // ── ANALYTICS CHARTS (live data injected by script.js) ─────────────────────────
-// Fallback data used when backend response is unavailable
-const _FB_DIST_PRED = [2, 5, 6, 8, 12, 4, 2];
-const _FB_DIST_ACTUAL = [3, 4, 6, 10, 10, 5, 2];
 const DIST_LABELS_CHART = ['<40%', '41–50%', '51–60%', '61–70%', '71–80%', '81–90%', '91–100%'];
 
 // Pre-Midterm
