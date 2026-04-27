@@ -9,3 +9,5 @@
 - UI doesn't look great
 - App is slow
 - we have no estimate of how much time will it take when working with simulator
+
+## we needa add some noise to the simulator
