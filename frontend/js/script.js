@@ -626,7 +626,7 @@ function renderStudentsView() {
       <span>#</span><span>Student</span><span>${meta.colHeader}</span><span>Risk</span><span></span>
     </div>`;
   sorted.forEach((s, i) => {
-    const val = s[view] || 0; const r = rc(s.riskLevel || 'safe');
+    const val = s[view] || 0; const r = rc(s.riskLevel);
     html += `<div class="stu-list-row" style="grid-template-columns:40px 1fr 140px 80px 100px;animation-delay:${i * .03}s">
       <span class="stu-rank">${i + 1}</span>
       <div class="stu-name-cell">
