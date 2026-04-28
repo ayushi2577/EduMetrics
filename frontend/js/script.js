@@ -455,7 +455,8 @@ function buildFlaggedCards() {
     card.innerHTML = `
       <div class="flag-top-row">
         <div class="flag-identity">
-          <div class="flag-av" style="background:${r.bg};color:${r.txt};width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;flex-shrink:0">${s.avatar}</div>
+          <div class="flag-av" style="background:${r.bg};color:${r.txt};// NEW
+          width:28px;height:28px;...font-size:10px;flex-shrink:0">${s.avatar}</div>
           <div>
             <div class="flag-name">${s.name}</div>
             <div class="flag-id">${s.id}</div>
@@ -466,19 +467,7 @@ function buildFlaggedCards() {
         </span>
       </div>
       <div class="flag-reason">${s.reason}</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:2px">
-        <div style="background:var(--bg4);border-radius:8px;padding:8px 10px;text-align:center">
-          <div style="font-size:10px;color:var(--txt3);font-weight:600;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:3px">Attend.</div>
-          <div style="font-size:15px;font-weight:800;color:${atColor}">${attended > 0 ? attended + '%' : 'N/A'}</div>
-        </div>
-        <div style="background:var(--bg4);border-radius:8px;padding:8px 10px;text-align:center">
-          <div style="font-size:10px;color:var(--txt3);font-weight:600;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:3px">Risk</div>
-          <div style="font-size:15px;font-weight:800;color:${r.txt}">${s.riskScore}%</div>
-        </div>
-        <div style="background:var(--bg4);border-radius:8px;padding:8px 10px;text-align:center">
-          <div style="font-size:10px;color:var(--txt3);font-weight:600;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:3px">Level</div>
-          <div style="font-size:15px;font-weight:800;color:var(--txt)">${s.escalation_level || '—'}</div>
-        </div>
+      </div>
       </div>
       <div class="flag-btn-row">
         <button class="view-btn" style="background:${r.bg};color:${r.txt};border:1px solid ${r.border}" onclick="openFlaggedDetail('${s.id}')">View Details →</button>
@@ -501,8 +490,7 @@ function buildLastWeekCards() {
     card.innerHTML = `
       <div class="flag-top-row">
         <div class="flag-identity">
-          <div class="flag-av" style="background:${r.bg};color:${r.txt};width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;flex-shrink:0">${s.avatar}</div>
-          <div>
+            <div class="flag-av" style="background:${r.bg};color:${r.txt};width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:10px;flex-shrink:0">${s.avatar}</div>
             <div class="flag-name">${s.name}</div>
             <div class="flag-id">${s.id}</div>
           </div>
