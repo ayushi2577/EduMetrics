@@ -935,7 +935,6 @@ def detainment_risk(request):
         class_id=class_id,
         semester=semester,
         sem_week=latest_week,
-        risk_of_detention__gte=50,
     ).values('student_id', 'risk_of_detention', 'overall_att_pct')
 
     result = {
@@ -947,24 +946,7 @@ def detainment_risk(request):
     }
     if result:
         return Response(result)
-    # No one is >= 50%, so just return the single highest-risk student
-    highest = weekly_metrics.objects.filter(
-        class_id=class_id,
-        semester=semester,
-        sem_week=latest_week,
-    ).order_by('-risk_of_detention').values(
-        'student_id', 'risk_of_detention', 'overall_att_pct'
-    ).first()
-
-    if not highest:
-        return Response({})
-
-    return Response({
-        highest['student_id']: {
-            'risk_score':     round(_f(highest['risk_of_detention']), 1),
-            'attendance_pct': round(_f(highest['overall_att_pct']), 1),
-        }
-    })
+    
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  5. EVENT REPORTS
