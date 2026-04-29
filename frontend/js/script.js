@@ -637,7 +637,6 @@ function renderStudentsView() {
         <div class="stu-bar-wrap"><div class="stu-bar-fill" style="width:${val}%;background:${meta.barColor}"></div></div>
         <span class="stu-val-num" style="color:${val < 40 ? 'var(--red)' : val < 60 ? 'var(--amber)' : 'var(--txt)'}">${val}%</span>
       </div>
-      <span class="stu-risk-pill" style="background:${r.bg};color:${r.txt}">${r.label.split(' ')[0]}</span>
       <button class="stu-view-btn" onclick="openStuDetail('${s.id}')">View Details</button>
     </div>`;
   });
