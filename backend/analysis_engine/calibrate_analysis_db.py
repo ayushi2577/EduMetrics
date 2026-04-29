@@ -321,7 +321,7 @@ def _scripts_for_week(sem_week, global_week):
     # 5. Predicted endterm score — week 17 only
     if sem_week == PRE_END_WEEK:
         scripts.append('pre_end_sem')
-    
+
     
 
     return scripts
