@@ -656,7 +656,7 @@ def _compute_detention_risk(total_present, total_held, sem_week):
 
     # Remaining teaching weeks to endterm
     weeks_left_to_end = [
-        w for w in range(sem_week + 1, ENDTERM_WEEK)
+        w for w in range(sem_week + 1, ENDTERM_WEEK+1)
         if w not in EXAM_WEEKS
     ]
     remaining_end = round(avg_held_per_week * len(weeks_left_to_end))
