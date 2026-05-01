@@ -112,7 +112,7 @@
 /* ── ANALYTICS STUDENT CARDS ─────────────────────────────────────────────────── */
 .anl-student-card-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 12px;
   padding: 4px 0;
   width: 100%;
@@ -228,4 +228,27 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* ── LAST WEEK FLAGS SCROLLABLE CONTAINER ───────────────────────────────────── */
+.lw-flag-scroll {
+  height: calc(2 * 180px + 12px); /* 2 rows + 1 gap between them */
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.lw-flag-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+
+.lw-flag-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.lw-flag-scroll::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
 }

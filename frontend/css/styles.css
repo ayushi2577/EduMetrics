@@ -256,13 +256,14 @@ body{font-family:var(--font);background:#f8fafc;color:#0f172a;min-height:100vh;o
 
 /* ─── LAST WEEK FLAGGED ─── */
 /* NEW */
-.lw-flag-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.lw-flag-scroll{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
 .lw-flag-card{
   background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius);
   padding:10px 12px;display:flex;flex-direction:column;gap:7px;
   position:relative;overflow:hidden;
   transition:all var(--tr);animation:fadeUp .5s ease both;
-  min-height:auto;
+  /* min-height:auto; */
+  height: calc(180px);
 }
 [data-theme="dark"] .lw-flag-card{background:linear-gradient(145deg,#101c2e,#0d1826);border:1px solid rgba(100,160,255,0.09);box-shadow:0 4px 20px rgba(0,0,0,0.35)}
 [data-theme="light"] .lw-flag-card{background:#ffffff;border:1px solid rgba(0,0,0,0.08);box-shadow:0 2px 12px rgba(0,0,0,0.06)}
