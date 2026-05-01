@@ -1143,31 +1143,69 @@ function _renderWatchlist(watchlist, elId) {
   if (!el || !watchlist) return;
   const entries = Object.entries(watchlist);
   if (!entries.length) {
-    el.innerHTML = '<tr><td colspan="5" style="color:var(--txt3);font-size:12px;padding:12px">No students on watchlist</td></tr>';
+    el.innerHTML = '<div class="anl-student-cards-empty">No students on watchlist</div>';
     return;
   }
-  el.innerHTML = entries.map(([sid, [name, reason,score, riskLvl]]) => {
-    const scoreColor = score < 50 ? 'var(--red)' : score < 65 ? 'var(--amber)' : 'inherit';
+  el.innerHTML = `<div class="anl-student-card-grid">${entries.map(([sid, [name, reason, score, riskLvl]]) => {
+    const scoreColor = score < 50 ? 'var(--red)' : score < 65 ? 'var(--amber)' : 'var(--green)';
     const r = rc(riskLvl || 'med');
-    return `<tr>
-      <td class="anl-wl-name">${name}</td>
-      <td>${sid}</td>
-      <td class="anl-wl-score" style="color:${scoreColor}">${score}%</td>
-      <td><span class="anl-risk-pill" style="background:${r.bg};color:${r.txt}">${r.label}</span></td>
-    </tr>`;
-  }).join('');
+    const av = initials(name);
+    return `<div class="anl-stu-card anl-stu-card--watch">
+      <div class="anl-stu-card-top">
+        <div class="anl-stu-av" style="background:${r.bg};color:${r.txt}">${av}</div>
+        <div class="anl-stu-info">
+          <div class="anl-stu-name">${name}</div>
+          <div class="anl-stu-id">${sid}</div>
+        </div>
+        <span class="anl-risk-pill" style="background:${r.bg};color:${r.txt};border:1px solid ${r.border}">${r.label}</span>
+      </div>
+      <div class="anl-stu-card-metrics">
+        <div class="anl-stu-metric">
+          <div class="anl-stu-metric-label">Predicted Score</div>
+          <div class="anl-stu-metric-val" style="color:${scoreColor}">${score}%</div>
+        </div>
+      </div>
+    </div>`;
+  }).join('')}</div>`;
 }
 
 function _renderPerformerList(list, elId, label) {
   const el = document.getElementById(elId);
   if (!el || !list) return;
   const entries = Object.entries(list);
-  if (!entries.length) { el.innerHTML = `<div style="color:var(--txt3);font-size:12px">No ${label.toLowerCase()}</div>`; return; }
-  el.innerHTML = entries.map(([sid, [name, scores]]) => {
+  if (!entries.length) {
+    el.innerHTML = `<div class="anl-student-cards-empty">No ${label.toLowerCase()}</div>`;
+    return;
+  }
+  const isOver = label === 'outperformers';
+  el.innerHTML = `<div class="anl-student-card-grid">${entries.map(([sid, [name, scores]]) => {
     const delta = scores.actual_score - scores.predicted_score;
-    const clr = delta > 0 ? 'var(--green)' : 'var(--red)';
-    return `<div class="wl-row"><div class="wl-name">${name}</div><div>Pred: <strong>${scores.predicted_score}%</strong> → Act: <strong>${scores.actual_score}%</strong></div><span style="color:${clr};font-weight:700">${delta > 0 ? '+' : ''}${delta.toFixed ? delta.toFixed(1) : delta}%</span></div>`;
-  }).join('');
+    const deltaStr = (delta > 0 ? '+' : '') + (delta.toFixed ? delta.toFixed(1) : delta) + '%';
+    const deltaColor = delta > 0 ? 'var(--green)' : 'var(--red)';
+    const av = initials(name);
+    const avatarBg = isOver ? 'rgba(63,185,80,0.12)' : 'rgba(248,81,73,0.12)';
+    const avatarTxt = isOver ? 'var(--green)' : 'var(--red)';
+    return `<div class="anl-stu-card ${isOver ? 'anl-stu-card--over' : 'anl-stu-card--under'}">
+      <div class="anl-stu-card-top">
+        <div class="anl-stu-av" style="background:${avatarBg};color:${avatarTxt}">${av}</div>
+        <div class="anl-stu-info">
+          <div class="anl-stu-name">${name}</div>
+          <div class="anl-stu-id">${sid}</div>
+        </div>
+        <span class="anl-stu-delta" style="color:${deltaColor}">${deltaStr}</span>
+      </div>
+      <div class="anl-stu-card-metrics">
+        <div class="anl-stu-metric">
+          <div class="anl-stu-metric-label">Predicted</div>
+          <div class="anl-stu-metric-val">${scores.predicted_score}%</div>
+        </div>
+        <div class="anl-stu-metric">
+          <div class="anl-stu-metric-label">Actual</div>
+          <div class="anl-stu-metric-val" style="color:${deltaColor}">${scores.actual_score}%</div>
+        </div>
+      </div>
+    </div>`;
+  }).join('')}</div>`;
 }
 
 // ── SCHEDULE / CALENDAR ───────────────────────────────────────────────────────
