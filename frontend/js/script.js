@@ -383,7 +383,7 @@ function changeWeek(w) {
   // Clear week-level data and expand cache (week changed so old expansions are stale)
   ALL_STUDENTS = [];
   _expandCache.clear();
-
+  _stuDetailCache.clear(); 
   // Clear week-level entries from the api.js response cache
   clearDashboardCache(CLASS_ID, SEMESTER);
 
@@ -711,56 +711,127 @@ async function openFlaggedDetail(studentId) {
 }
 
 // Open from students page
+// ── STUDENT DETAIL — via new student_detail endpoint ─────────────────────────
+// Per-session cache: student_id+week → merged student object.
+// Same pattern as _expandCache so repeat opens are instant.
+const _stuDetailCache = new Map();
+
+async function getStudentDetail(studentId) {
+  const key = `${studentId}_${currentWeek}_${SEMESTER}`;
+  if (_stuDetailCache.has(key)) return _stuDetailCache.get(key);
+
+  const data = await fetchStudentDetail(studentId, CLASS_ID, SEMESTER, currentWeek);
+  _stuDetailCache.set(key, data);
+  return data;
+}
+
+function mergeStudentDetailIntoStudent(base, detail) {
+  const ov  = detail.student_overview    || {};
+  const evp = detail.effort_vs_performance || {};
+  const trends = detail.trends           || {};
+  const fh  = detail.flagging_history    || {};
+
+  const weekKeys = Array.from({ length: 14 }, (_, i) => i + 1);
+  const weekEt   = weekKeys.map(w => trends.E_t?.[w] ?? null);
+  const weekAt   = weekKeys.map(w => (trends.A_t?.[w] !== false ? trends.A_t?.[w] : null) ?? null);
+
+  // Build factors from flagging_contributors if present, else from last flag diagnosis
+  const fc = detail.flagging_contributors || {};
+  const fcEntries = Object.entries(fc);
+  const colors = ['var(--red)', 'var(--amber)', '#58a6ff', 'var(--purple)', 'var(--green)'];
+  const factors = fcEntries.length
+    ? (() => {
+        const total = fcEntries.reduce((s, [, v]) => s + v, 0) || 1;
+        return fcEntries.map(([label, val], i) => ({
+          label,
+          pct: Math.round((val / total) * 100),
+          color: colors[i % colors.length],
+        }));
+      })()
+    : buildFactorsFromDiagnosis(base.reason || '', Math.round(ov.avg_risk_score || 0));
+
+  // flagging_history is now { total_flags, interventions, by_week }
+  const byWeek = fh.by_week || {};
+  const flagHistory = Object.entries(byWeek).map(([week, entry]) => ({
+    week:      parseInt(week),
+    diagnosis: entry.diagnosis,
+    intervened: entry.did_we_intervene,
+  }));
+
+  const riskScore = Math.round(ov.avg_risk_score || base.riskScore || 0);
+
+  return {
+    ...base,
+    // identity (prefer detail values which come from ClientStudent)
+    name:         detail.name   || base.name,
+    avatar:       detail.avatar || base.avatar || initials(detail.name || base.name),
+    riskLevel:    detail.risk_level || base.riskLevel || 'safe',
+    risk:         detail.risk_level || base.risk      || 'safe',
+    // overview
+    avgRisk:      riskScore,
+    avgEt:        Math.round(ov.avg_effort               || 0),
+    avgAt:        Math.round(ov.avg_academic_performance || 0),
+    overallAttend: Math.round(ov.overall_attendance      || 0),
+    riskDetention: Math.round(ov.risk_of_detention       || 0),
+    riskFail:     Math.round(ov.risk_of_failing          || ov.avg_risk_score || 0),
+    riskScore,
+    midterm: ov.mid_term_score !== null && ov.mid_term_score !== false
+      ? ov.mid_term_score : 'N/A',
+    // trends
+    weekEt, weekAt,
+    // factors
+    factors,
+    majorFactor: factors.length ? factors[0].label : '',
+    // flag history (counts come from the new shape; rows from by_week)
+    flagHistory,
+    totalFlags:    fh.total_flags   ?? flagHistory.length,
+    totalInterventions: fh.interventions ?? flagHistory.filter(f => f.intervened).length,
+    // AI summary
+    aiSummary: detail.student_summary || null,
+    // effort vs performance
+    etThisWeek:       Math.round(evp.E_t || 0),
+    perfThisWeek:     Math.round(evp.A_t || 0),
+    studentAvgEt:     Math.round(evp.avg_effort_of_student      || 0),
+    studentAvgPerf:   Math.round(evp.avg_performance_of_student || 0),
+    classAvgEt:       Math.round(evp.avg_effort_of_class        || 0),
+    classAvgPerf:     Math.round(evp.avg_performance_of_class   || 0),
+    recovery: Math.max(5, 100 - riskScore),
+  };
+}
+
+// Replace the old openStuDetail ──────────────────────────────────────────────
 async function openStuDetail(studentId) {
-  const base = ALL_STUDENTS.find(x => x.id === studentId);
-  const flagId = STUDENT_TO_FLAG_ID[studentId];
+  const base = ALL_STUDENTS.find(x => x.id === studentId)
+    || { id: studentId, name: studentId, avatar: initials(studentId), riskLevel: 'safe' };
 
-  if (flagId) {
-    try {
-      const expanded = await getExpandedFlag(flagId);
-      const full = mergeExpandFlagIntoStudent(base || { id: studentId, name: studentId, avatar: initials(studentId), riskLevel: 'safe' }, expanded);
-      openStuDetailFromStudent(full);
-      return;
-    } catch { }
+  try {
+    const detail = await getStudentDetail(studentId);
+    const full   = mergeStudentDetailIntoStudent(base, detail);
+    // Keep STUDENT_TO_FLAG_ID in sync so logIntervention works if a flag exists
+    if (full.flagId) STUDENT_TO_FLAG_ID[studentId] = full.flagId;
+    openStuDetailFromStudent(full);
+  } catch {
+    // Fallback: open with whatever all_students gave us (no trends / AI)
+    openStuDetailFromStudent(base);
   }
-  if (base) openStuDetailFromStudent(base);
 }
 
-function openDetailFromStudent(s) {
-  currentStudent = s;
-  const r = rc(s.riskLevel || s.risk || 'med');
-  _fillDetailOverlay(s, r, 'dm', 'dmLineChart', 'dmQuadChart', 'overlay');
-  document.getElementById('overlay').classList.add('open'); document.body.style.overflow = 'hidden';
-  const rp = s.riskFail || s.riskScore || 0;
-  const rc2 = rp > 70 ? 'var(--red)' : rp > 45 ? 'var(--amber)' : 'var(--green)';
-  document.getElementById('dmRiskBar').style.cssText = `width:0%;background:${rc2};height:100%;border-radius:10px;transition:width 1.2s ease .4s`;
-  document.getElementById('dmRiskVal').style.color = rc2;
-  document.getElementById('dmRiskVal').textContent = (typeof rp === 'number' ? rp.toFixed(1) : rp) + '%';
-  const recov = s.recovery || Math.max(5, 100 - rp);
-  const recColor = recov < 30 ? 'var(--red)' : recov < 55 ? 'var(--amber)' : 'var(--green)';
-  document.getElementById('dmRecBar').style.cssText = `width:0%;background:${recColor};height:100%;border-radius:10px;transition:width 1.2s ease .6s`;
-  document.getElementById('dmRecVal').style.color = recColor;
-  document.getElementById('dmRecVal').textContent = recov + '%';
-  document.getElementById('dmFactors').innerHTML = (s.factors || []).length
-    ? s.factors.map(f => `<div class="dm-factor-bar-row"><div class="dm-factor-bar-top"><span class="dm-factor-bar-label">${f.label}</span><span class="dm-factor-bar-pct">${f.pct}%</span></div><div class="dm-factor-bar-track"><div class="dm-factor-bar-fill" style="width:0%;background:${f.color}" data-target="${f.pct}"></div></div></div>`).join('')
-    : '<div style="color:var(--txt3);font-size:12px">No factors recorded</div>';
-  document.getElementById('dmMajorNote').innerHTML = s.majorFactor ? `⚡ Major contributor: <strong style="color:var(--amber)">${s.majorFactor}</strong>` : '';
-  buildDmLineChart(s);
-  buildDmQuadChart(s);
-  setTimeout(() => {
-    document.querySelectorAll('.dm-factor-bar-fill[data-target]').forEach(el => { el.style.width = el.dataset.target + '%'; });
-    document.getElementById('dmRiskBar').style.width = rp + '%';
-    document.getElementById('dmRecBar').style.width = recov + '%';
-  }, 80);
-}
 
 function openStuDetailFromStudent(s) {
   currentStudent = s;
   const r = rc(s.riskLevel || s.risk || 'safe');
+
+  // Ensure weekEt/weekAt are arrays (may be empty for non-flagged students)
+  if (!s.weekEt || !s.weekEt.length) s.weekEt = Array(14).fill(null);
+  if (!s.weekAt || !s.weekAt.length) s.weekAt = Array(14).fill(null);
+
   _fillDetailOverlay(s, r, 'stuDet', 'stuDetLineChart', 'stuDetQuadChart', 'stuDetailOverlay');
-  buildStuDetLineChart(s);
-  buildStuDetQuadChart(s);
-  document.getElementById('stuDetailOverlay').classList.add('open'); document.body.style.overflow = 'hidden';
+  document.getElementById('stuDetailOverlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+  setTimeout(() => {
+    buildStuDetLineChart(s);
+    buildStuDetQuadChart(s);
+  }, 80);
 }
 
 function _fillDetailOverlay(s, r, prefix, lineChartId, quadChartId, overlayId) {
@@ -788,7 +859,8 @@ function _fillDetailOverlay(s, r, prefix, lineChartId, quadChartId, overlayId) {
   const statsEl = document.getElementById(prefix + 'Stats') || document.getElementById(prefix + 'DetStats');
   if (statsEl) statsEl.innerHTML = stats.map(([l, v, c]) => `<div class="dm-stat-row"><span class="dm-stat-label">${l}</span><span class="dm-stat-val" style="${c ? `color:${c}` : ''}"> ${v}</span></div>`).join('');
   const fh = s.flagHistory || [];
-  const tf = fh.length, ti = fh.filter(f => f.intervened).length;
+  const tf = s.totalFlags         ?? fh.length;
+  const ti = s.totalInterventions ?? fh.filter(f => f.intervened).length
   const fhSum = document.getElementById(prefix + 'FhSummary') || document.getElementById(prefix + 'DetFhSummary');
   if (fhSum) fhSum.innerHTML = `<div class="fh-sum-box"><div class="fh-sum-val" style="color:var(--red)">${tf}</div><div class="fh-sum-label">Total Flags</div></div><div class="fh-sum-box"><div class="fh-sum-val" style="color:var(--green)">${ti}</div><div class="fh-sum-label">Interventions</div></div>`;
   const fhList = document.getElementById(prefix + 'FhList') || document.getElementById(prefix + 'DetFhList');

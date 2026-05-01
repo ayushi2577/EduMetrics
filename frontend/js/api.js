@@ -223,6 +223,10 @@ function fetchDetainmentRisk(class_id, semester,sem_week) {
   return _cachedApiFetch(`/api/analysis/students/detainment_risk/${qs({ class_id, semester,sem_week })}`);
 }
 
+function fetchStudentDetail(student_id, class_id, semester, sem_week) {
+  return _cachedApiFetch(`/api/analysis/students/${student_id}/${qs({ class_id, semester, sem_week })}`);
+}
+
 // ── REPORTS ───────────────────────────────────────────────────────────────────
 // Reports are semester-level (don't change with week) — longer TTL not needed
 // because CACHE_TTL covers a session comfortably.
