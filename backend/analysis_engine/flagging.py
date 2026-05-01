@@ -882,7 +882,7 @@ def generate_weekly_triage(sem_week=None, semester=None):
     rows_to_update = []
     for wm in wm_qs:
         sid = wm.student_id
-        wm.risk_score       = int(round(risk_score_map[sid] * 100)) if sid in risk_score_map else wm.risk_score
+        wm.risk_score       = int(round(risk_score_map[sid] )) if sid in risk_score_map else wm.risk_score
         wm.escalation_level = escalation_map.get(sid, wm.escalation_level)
         rows_to_update.append(wm)
 
