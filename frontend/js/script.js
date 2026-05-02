@@ -687,28 +687,90 @@ async function getExpandedFlag(flagId) {
 }
 
 // Open from flagged cards
+// Open from flagged cards — writes into the main #overlay, not #stuDetailOverlay
 async function openFlaggedDetail(studentId) {
   const base = FLAGGED.find(x => x.id === studentId);
   const flagId = STUDENT_TO_FLAG_ID[studentId] || (base && base.flagId);
 
   if (!flagId) {
-    if (base) { openDetailFromStudent(base); return; }
+    if (base) { openFlaggedDetailInOverlay(base); return; }
     alert('Could not find flag ID for this student'); return;
   }
 
-  // Show the overlay immediately with whatever we already have (no wait)
-  // so the user sees something right away.
   const baseOrSkeleton = base || { id: studentId, name: studentId, avatar: initials(studentId), riskLevel: 'med' };
 
   try {
     const expanded = await getExpandedFlag(flagId);
     const full = mergeExpandFlagIntoStudent(baseOrSkeleton, expanded);
-    openDetailFromStudent(full);
+    openFlaggedDetailInOverlay(full);
   } catch {
-    // Fallback: open with base data (no AI summary / trends)
-    if (base) openDetailFromStudent(base);
+    if (base) openFlaggedDetailInOverlay(base);
     else alert('Could not load student details.');
   }
+}
+
+// Renders a flagged student into the main #overlay (dm* IDs)
+function openFlaggedDetailInOverlay(s) {
+  currentStudent = s;
+  const r = rc(s.riskLevel || s.risk || 'safe');
+
+  if (!s.weekEt || !s.weekEt.length) s.weekEt = Array(14).fill(null);
+  if (!s.weekAt || !s.weekAt.length) s.weekAt = Array(14).fill(null);
+
+  const av = document.getElementById('dmAv');
+  if (av) { av.textContent = s.avatar || initials(s.name); av.style.cssText = `background:${r.bg};color:${r.txt};width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;flex-shrink:0`; }
+  const title = document.getElementById('dmTitle'); if (title) title.textContent = s.name;
+  const sub   = document.getElementById('dmSub');   if (sub)   sub.textContent   = s.id;
+  const pill  = document.getElementById('dmRiskPill');
+  if (pill) { pill.innerHTML = `<span class="rpd" style="background:${r.txt}"></span>${r.label}`; pill.style.cssText = `background:${r.bg};color:${r.txt};border:1px solid ${r.border};display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:700;padding:4px 10px;border-radius:20px`; }
+
+  const sumText  = document.getElementById('dmSummaryText');  if (sumText)  sumText.innerHTML = generateStudentSummary(s);
+  const sumPanel = document.getElementById('dmSummaryPanel'); if (sumPanel) sumPanel.style.borderLeftColor = r.txt;
+
+  const stats = [
+    ['Avg Risk Score',          `${(s.avgRisk||0).toFixed?.(1)??s.avgRisk||0}%`,               (s.avgRisk||0)>60?'var(--red)':(s.avgRisk||0)>40?'var(--amber)':'var(--green)'],
+    ['Avg Effort',              `${(s.avgEt||0).toFixed?.(1)??s.avgEt||0}%`,                   null],
+    ['Avg Academic Performance',`${(s.avgAt||s.academicPerf||0).toFixed?.(1)??(s.avgAt||0)}%`, (s.avgAt||0)<50?'var(--red)':null],
+    ['Overall Attendance',      `${s.overallAttend||s.attendance||0}%`,                        (s.overallAttend||s.attendance||0)<75&&(s.overallAttend||s.attendance||0)>0?'var(--red)':null],
+    ['Risk of Detention',       `${s.riskDetention||0}%`,                                      (s.riskDetention||0)>60?'var(--red)':(s.riskDetention||0)>40?'var(--amber)':'var(--green)'],
+    ['Risk of Failing',         `${(s.riskFail||s.riskScore||0).toFixed?.(1)??(s.riskFail||0)}%`, (s.riskFail||0)>60?'var(--red)':(s.riskFail||0)>40?'var(--amber)':'var(--green)'],
+    ['Midterm Score',           s.midterm!=null&&s.midterm!==undefined?s.midterm:'N/A',        null],
+  ];
+  const statsEl = document.getElementById('dmStats');
+  if (statsEl) statsEl.innerHTML = stats.map(([l,v,c])=>`<div class="dm-stat-row"><span class="dm-stat-label">${l}</span><span class="dm-stat-val" style="${c?`color:${c}`:''}"> ${v}</span></div>`).join('');
+
+  const fh = s.flagHistory || [];
+  const tf = s.totalFlags         ?? fh.length;
+  const ti = s.totalInterventions ?? fh.filter(f=>f.intervened).length;
+  const fhSum = document.getElementById('dmFhSummary');
+  if (fhSum) fhSum.innerHTML = `<div class="fh-sum-box"><div class="fh-sum-val" style="color:var(--red)">${tf}</div><div class="fh-sum-label">Total Flags</div></div><div class="fh-sum-box"><div class="fh-sum-val" style="color:var(--green)">${ti}</div><div class="fh-sum-label">Interventions</div></div>`;
+  const fhBody = document.getElementById('dmFhBody');
+  if (fhBody) {
+    fhBody.innerHTML = fh.length
+      ? fh.map(f => {
+          const wk = f.week||f.sem_week||'?';
+          const diag = f.diagnosis||'Flagged';
+          const intBadge = f.intervened ? `<span style="background:rgba(63,185,80,0.12);color:#3fb950;border:1px solid rgba(63,185,80,0.3);font-size:9.5px;padding:2px 7px;border-radius:10px;font-weight:700">Intervened</span>` : '';
+          return `<tr><td>W${wk}</td><td>${diag}</td><td>${intBadge||'—'}</td></tr>`;
+        }).join('')
+      : `<tr><td colspan="3" style="color:var(--txt3);font-size:12px">No flag history available</td></tr>`;
+  }
+
+  const factorsEl = document.getElementById('dmFactors');
+  if (factorsEl) factorsEl.innerHTML = (s.factors||[]).map(f=>`<div class="factor-bar-row"><div class="factor-bar-top"><span class="factor-bar-label">${f.label}</span><span class="factor-bar-pct" style="color:${f.color}">${f.pct}%</span></div><div class="factor-bar-track"><div class="factor-bar-fill" style="width:${f.pct}%;background:${f.color}"></div></div></div>`).join('');
+  const majorNote = document.getElementById('dmMajorNote');
+  if (majorNote) majorNote.textContent = s.majorFactor ? `Primary driver: ${s.majorFactor}` : '';
+
+  const riskPct = s.riskFail||s.riskScore||0;
+  const recPct  = s.recovery||Math.max(5,100-riskPct);
+  const riskBar = document.getElementById('dmRiskBar'); if (riskBar) { riskBar.style.width=`${riskPct}%`; riskBar.style.background=riskPct>60?'var(--red)':riskPct>40?'var(--amber)':'var(--green)'; }
+  const riskVal = document.getElementById('dmRiskVal'); if (riskVal) riskVal.textContent = `${riskPct}%`;
+  const recBar  = document.getElementById('dmRecBar');  if (recBar)  { recBar.style.width=`${recPct}%`; recBar.style.background=recPct<30?'var(--red)':recPct<55?'var(--amber)':'var(--green)'; }
+  const recVal  = document.getElementById('dmRecVal');  if (recVal)  recVal.textContent = `${recPct}%`;
+
+  document.getElementById('overlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+  setTimeout(() => { buildDmLineChart(s); buildDmQuadChart(s); }, 80);
 }
 
 // Open from students page
