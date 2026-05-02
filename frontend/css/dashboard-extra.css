@@ -109,28 +109,146 @@
   transform: translateY(-3px);
 }
 
-.lw-scroll-frame {
-  height: 340px;
-  overflow-y: scroll;
-  overflow-x: hidden;
-  scroll-snap-type: y mandatory;
-  -webkit-overflow-scrolling: touch;
-  border-radius: 14px;
+/* ── ANALYTICS STUDENT CARDS ─────────────────────────────────────────────────── */
+.anl-student-card-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+  padding: 4px 0;
+  width: 100%;
+  box-sizing: border-box;
 }
 
-.lw-scroll-frame .lw-flag-grid {
-  display: flex !important;
-  flex-direction: column;
-  gap: 0;
+.anl-student-cards-empty {
+  color: var(--txt3);
+  font-size: 12px;
+  padding: 12px 0;
 }
-.lw-scroll-frame .lw-flag-card {
-  flex-shrink: 0;
-  height: 340px;
-  scroll-snap-align: start;
-  scroll-snap-stop: always;
-  border-radius: 14px;
-  min-height: unset !important;
+
+.anl-watchlist-card {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.anl-stu-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  gap: 12px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.anl-stu-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.08);
+}
+
+.anl-stu-card--under { border-left: 3px solid var(--red); }
+.anl-stu-card--over  { border-left: 3px solid var(--green); }
+.anl-stu-card--watch { border-left: 3px solid var(--amber); }
+
+.anl-stu-card-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.anl-stu-av {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.anl-stu-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.anl-stu-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--txt1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.anl-stu-id {
+  font-size: 11px;
+  color: var(--txt3);
+  margin-top: 1px;
+}
+
+.anl-stu-delta {
+  font-size: 13px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.anl-stu-card-metrics {
+  display: flex;
+  gap: 12px;
+}
+
+.anl-stu-metric {
+  flex: 1;
+  background: var(--bg3);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.anl-stu-metric-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--txt3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 3px;
+}
+
+.anl-stu-metric-val {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--txt1);
+}
+
+.anl-stu-metric-reason {
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── LAST WEEK FLAGS SCROLLABLE CONTAINER ───────────────────────────────────── */
+.lw-flag-scroll {
+  height: calc(2 * 180px + 12px); /* 2 rows + 1 gap between them */
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.lw-flag-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+
+.lw-flag-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.lw-flag-scroll::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
 }

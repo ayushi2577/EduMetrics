@@ -154,7 +154,6 @@
           <div class="section-title">
             <span class="pulse-dot"></span>
             Flagged Students This Week
-            <span class="stag" style="background:var(--red-bg);color:var(--red);border:1px solid var(--red-border)">6 Students</span>
           </div>
           <div class="section-sub" id="flaggedWeekSub">Week 9 · Semester 2</div>
         </div>
@@ -190,9 +189,7 @@
               <span class="stag" style="background:var(--amber-bg);color:var(--amber);border:1px solid var(--amber-border)">Review</span>
             </div>
           </div>
-          <div class="lw-scroll-frame">
-            <div class="lw-flag-grid" id="lastWeekGrid"></div>
-          </div>
+          <div class="lw-flag-scroll" id="lastWeekGrid"></div>
         </section>
       </div>
     </div>
@@ -356,14 +353,7 @@
               <span>⚠️</span>
               <span style="color:var(--red)">Students to Watch Out for Before Midterm</span>
             </div>
-            <table class="anl-watchlist-table">
-              <thead>
-                <tr>
-                  <th>STUDENT NAME</th><th>ID</th><th>PREDICTED SCORE</th><th>RISK LEVEL</th>
-                </tr>
-              </thead>
-              <tbody id="preMidtermWatchlist"></tbody>
-            </table>
+            <div id="preMidtermWatchlist"></div>
           </div>
         </div>
 
@@ -498,12 +488,7 @@
                 <span>⚠️</span>
                 <span style="color:var(--red)">Students to Watch Out for Before End Term</span>
               </div>
-              <table class="anl-watchlist-table">
-                <thead>
-                  <tr><th>STUDENT NAME</th><th>ID</th><th>PREDICTED SCORE</th><th>RISK LEVEL</th></tr>
-                </thead>
-                <tbody id="preEndtermWatchlist"></tbody>
-              </table>
+              <div id="preEndtermWatchlist"></div>
             </div>
         </div>
         </div><!-- /anl-pre-end -->

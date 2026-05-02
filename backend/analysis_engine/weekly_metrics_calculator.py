@@ -648,6 +648,10 @@ def _compute_detention_risk(total_present, total_held, sem_week):
 
     overall_att_pct = round(total_present / total_held * 100.0, 2)
 
+    if sem_week >= 17:
+        risk_end = 100.0 if overall_att_pct < 75.0 else 0.0
+        return overall_att_pct, risk_end
+
     # Teaching weeks elapsed so far (excluding exam weeks)
     weeks_so_far = len([w for w in range(1, sem_week + 1) if w not in EXAM_WEEKS])
 
@@ -656,7 +660,7 @@ def _compute_detention_risk(total_present, total_held, sem_week):
 
     # Remaining teaching weeks to endterm
     weeks_left_to_end = [
-        w for w in range(sem_week + 1, ENDTERM_WEEK)
+        w for w in range(sem_week + 1, ENDTERM_WEEK+1)
         if w not in EXAM_WEEKS
     ]
     remaining_end = round(avg_held_per_week * len(weeks_left_to_end))

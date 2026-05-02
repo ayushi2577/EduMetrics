@@ -46,6 +46,7 @@ from .views import (
     # ── NEW: Students ───────────────────────────────────────────────────────
     all_students,
     detainment_risk,
+    student_detail,
 
     # ── NEW: Reports ────────────────────────────────────────────────────────
     pre_midterm_report,
@@ -95,6 +96,9 @@ urlpatterns = [
 
     # GET /api/analysis/students/detainment_risk/?class_id=X&semester=Y
     path('students/detainment_risk/', detainment_risk, name='detainment_risk'),
+
+    # GET /api/analysis/students/<str:student_id>/?class_id=X&semester=Y
+    path('students/<str:student_id>/', student_detail, name='student_detail'),
 
     # ── Reports ───────────────────────────────────────────────────────────────
     # GET /api/analysis/reports/pre_midterm/?class_id=X&semester=Y
