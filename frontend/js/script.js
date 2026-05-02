@@ -30,6 +30,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   ADVISOR_NAME = info.advisor_name || 'Harcoded advisor';
   SEMESTER = info.semester || 1;
   currentWeek = info.sem_week || 1;
+  ACTUAL_SEMESTER=info.actual_semester || 1;
   
   // ── Build week dropdown dynamically up to currentWeek ──
   const weekSelect = document.getElementById('weekSelect');
@@ -49,7 +50,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const flaggedWeekSub = document.getElementById('flaggedWeekSub');
   if (flaggedWeekSub) flaggedWeekSub.textContent = 'Week ' + currentWeek + ' · Semester ' + SEMESTER;
   const semBadge = document.getElementById('semBadge');
-  if (semBadge) semBadge.textContent='Semester'+SEMESTER;
+  if (semBadge) semBadge.textContent='Semester'+ACTUAL_SEMESTER;
 
   document.querySelectorAll('.advisor-name').forEach(el => el.textContent = ADVISOR_NAME);
   document.querySelectorAll('.advisor-avatar').forEach(el => {
