@@ -14,6 +14,7 @@ function getAdvisorInfo()  {
     advisor_name: localStorage.getItem('em_advisor_name') || 'Advisor',
     semester:     parseInt(localStorage.getItem('em_semester'))  || 1,
     sem_week:     parseInt(localStorage.getItem('em_sem_week'))  || 1,
+    actual_semester: parseInt(localStorage.getItem('em_actual_semester')) || 1,
   };
 }
 
