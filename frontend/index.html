@@ -1853,6 +1853,7 @@ async function handleLogin() {
     localStorage.setItem('em_advisor_name', data.advisor_name);
     localStorage.setItem('em_semester',     data.semester);   // ← add this
     localStorage.setItem('em_sem_week',     data.sem_week);   // ← add this
+    localStorage.setItem('em_actual_semester', data.actual_semester)
     btn.textContent = '✓ Success! Redirecting…';
     setTimeout(() => { window.location.href = 'dashboard.html'; }, 600);
   } catch (err) {

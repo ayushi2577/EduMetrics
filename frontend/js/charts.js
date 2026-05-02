@@ -232,7 +232,52 @@ function buildStuDetQuadChart(s) {
     }
   });
 }
-
+// ── FLAGGED DETAIL LINE & QUAD (Main #overlay) ────────────────────────────────
+let dmLineInst = null, dmQuadInst = null;
+function buildDmLineChart(s) {
+  if (dmLineInst) { dmLineInst.destroy(); dmLineInst = null; }
+  const { tc, gc, tip } = chartDefaults();
+  const canvas = document.getElementById('dmLineChart');
+  if (!canvas) return;
+  dmLineInst = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels: WEEKS, datasets: [
+        { label: 'Effort', data: fillNulls(s.weekEt), spanGaps: true, borderColor: '#58a6ff', backgroundColor: 'rgba(88,166,255,0.08)', borderWidth: 2.5, tension: 0.38, fill: true, pointBackgroundColor: '#58a6ff', pointRadius: 4, pointHoverRadius: 7 },
+        { label: 'Academic Performance', data: fillNulls(s.weekAt), spanGaps: true, borderColor: '#d29922', backgroundColor: 'rgba(210,153,34,0.06)', borderWidth: 2.5, tension: 0.38, fill: true, pointBackgroundColor: '#d29922', pointRadius: 4, pointHoverRadius: 7 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: tip },
+      scales: { x: { grid: { color: gc }, ticks: { color: tc, font: { size: 10, family: 'DM Sans' } } }, y: { grid: { color: gc }, ticks: { color: tc, font: { size: 10 } }, min: 0, max: 100 } }
+    }
+  });
+}
+function buildDmQuadChart(s) {
+  if (dmQuadInst) { dmQuadInst.destroy(); dmQuadInst = null; }
+  const { tc, gc, tip } = chartDefaults();
+  const canvas = document.getElementById('dmQuadChart');
+  if (!canvas) return;
+  const classEt = s.classAvgEt || 65;
+  const classPerf = s.classAvgPerf || 70;
+  dmQuadInst = new Chart(canvas, {
+    type: 'scatter',
+    data: {
+      datasets: [
+        { data: [{ x: classEt, y: 0 }, { x: classEt, y: 100 }], type: 'line', borderColor: 'rgba(100,116,139,0.5)', borderWidth: 1.5, borderDash: [4, 3], pointRadius: 0, fill: false },
+        { data: [{ x: 0, y: classPerf }, { x: 100, y: classPerf }], type: 'line', borderColor: 'rgba(100,116,139,0.5)', borderWidth: 1.5, borderDash: [4, 3], pointRadius: 0, fill: false },
+        { label: 'This Week', data: [{ x: s.etThisWeek || 0, y: s.perfThisWeek || 0, label: 'This Week' }], backgroundColor: 'rgba(210,153,34,0.9)', borderColor: '#d29922', borderWidth: 2, pointRadius: 11, pointHoverRadius: 15 },
+        { label: 'Avg', data: [{ x: s.studentAvgEt || 0, y: s.studentAvgPerf || 0, label: 'Avg' }], backgroundColor: 'rgba(88,166,255,0.9)', borderColor: '#58a6ff', borderWidth: 2, pointRadius: 11, pointHoverRadius: 15 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { ...tip, filter: item => item.datasetIndex >= 2, callbacks: { title: ctx => `${ctx[0].raw.label || ''}`, label: ctx => `Effort: ${ctx.raw.x}% · Acad: ${ctx.raw.y}%` } } },
+      scales: { x: { grid: { color: gc }, ticks: { color: tc, font: { size: 10 } }, min: 0, max: 100, title: { display: true, text: 'Effort (%)', color: tc, font: { size: 10 } } }, y: { grid: { color: gc }, ticks: { color: tc, font: { size: 10 } }, min: 0, max: 100, title: { display: true, text: 'Academic Performance (%)', color: tc, font: { size: 10 } } } }
+    }
+  });
+}
 // ── ANALYTICS CHARTS (live data injected by script.js) ─────────────────────────
 const DIST_LABELS_CHART = ['<40%', '41–50%', '51–60%', '61–70%', '71–80%', '81–90%', '91–100%'];
 

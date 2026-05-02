@@ -14,10 +14,11 @@ function getAdvisorInfo()  {
     advisor_name: localStorage.getItem('em_advisor_name') || 'Advisor',
     semester:     parseInt(localStorage.getItem('em_semester'))  || 1,
     sem_week:     parseInt(localStorage.getItem('em_sem_week'))  || 1,
+    actual_semester: parseInt(localStorage.getItem('em_actual_semester')) || 1,
   };
 }
 
-function saveTokens({ access, refresh, class_id, advisor_id, advisor_name, semester, sem_week }) {
+function saveTokens({ access, refresh, class_id, advisor_id, advisor_name, semester, sem_week ,actual_semester}) {
   localStorage.setItem('em_access',       access);
   localStorage.setItem('em_refresh',      refresh);
   localStorage.setItem('em_class_id',     class_id     || '');
@@ -25,10 +26,11 @@ function saveTokens({ access, refresh, class_id, advisor_id, advisor_name, semes
   localStorage.setItem('em_advisor_name', advisor_name || '');
   localStorage.setItem('em_semester',     semester     || 1);
   localStorage.setItem('em_sem_week',     sem_week     || 1);
+  localStorage.setItem('em_actual_semester',actual_semester||1);
 }
 
 function clearTokens() {
-  ['em_access','em_refresh','em_class_id','em_advisor_id','em_advisor_name','em_semester','em_sem_week']
+  ['em_access','em_refresh','em_class_id','em_advisor_id','em_advisor_name','em_semester','em_sem_week','em_actual_semester']
     .forEach(k => localStorage.removeItem(k));
 }
 
@@ -221,6 +223,10 @@ function fetchAllStudents(class_id, semester, sem_week) {
 
 function fetchDetainmentRisk(class_id, semester,sem_week) {
   return _cachedApiFetch(`/api/analysis/students/detainment_risk/${qs({ class_id, semester,sem_week })}`);
+}
+
+function fetchStudentDetail(student_id, class_id, semester, sem_week) {
+  return _cachedApiFetch(`/api/analysis/students/${student_id}/${qs({ class_id, semester, sem_week })}`);
 }
 
 // ── REPORTS ───────────────────────────────────────────────────────────────────

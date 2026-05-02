@@ -219,14 +219,20 @@ def dashboard_summary(request):
     sem_week = int(params['sem_week'])
 
     total_students = weekly_metrics.objects.filter(
-        class_id=class_id, semester=semester, sem_week=sem_week
+        class_id=class_id, semester=semester, sem_week=1
     ).count()
 
     flags_qs = weekly_flags.objects.filter(
         class_id=class_id, semester=semester, sem_week=sem_week
     )
     flagged = flags_qs.count()
+
+    
+    # urg_qs=weekly_metrics.objects.filter(
+            # class_id=class_id, semester=semester, sem_week=sem_week
+        # )
     avg_urgency = _f(flags_qs.aggregate(a=Avg('urgency_score'))['a'])
+    
 
     interventions = intervention_log.objects.filter(
         semester=semester, sem_week=sem_week,
@@ -584,13 +590,14 @@ def expand_flag(request, flag_id):
             student_id=sid, semester=semester, advisor_notified=True
         ).values_list('sem_week', flat=True)
     )
+    # NEW
     flagging_history = {
         f['sem_week']: {
             'diagnosis':       f['diagnosis'],
             'did_we_intervene': f['sem_week'] in intervened_weeks,
         }
         for f in weekly_flags.objects.filter(
-            student_id=sid, semester=semester
+            student_id=sid, semester=semester, sem_week__lte=sem_week
         ).order_by('sem_week').values('sem_week', 'diagnosis')
     }
 
@@ -906,6 +913,219 @@ def all_students(request):
     })
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+#  5b. STUDENT DETAIL  — student_detail
+# ─────────────────────────────────────────────────────────────────────────────
+
+@api_view(['GET'])
+def student_detail(request, student_id):
+    """
+    GET /api/analysis/students/<student_id>/?class_id=X&semester=Y&sem_week=Z
+
+    Returns the same shape as expand_flag but keyed by student_id rather than
+    flag_id, so it works for any student (flagged or not).
+
+    {
+        student_id        : str,
+        name              : str,
+        avatar            : str,
+        risk_level        : str,          # 'high' | 'med' | 'safe'
+        student_overview  : {
+            avg_risk_score, avg_effort, avg_academic_performance,
+            overall_attendance, risk_of_detention, risk_of_failing,
+            mid_term_score
+        },
+        student_summary   : str | null,   # AI narrative
+        flagging_history  : {
+            total_flags     : int,
+            interventions   : int,
+            by_week         : { sem_week: { diagnosis, did_we_intervene } }
+        },
+        trends            : { E_t: { week: val }, A_t: { week: val | False } },
+        effort_vs_performance : {
+            avg_effort_of_class, avg_performance_of_class,
+            avg_effort_of_student, avg_performance_of_student,
+            E_t, A_t
+        },
+    }
+    """
+    params, err = _require(request, 'class_id', 'semester', 'sem_week')
+    if err:
+        return err
+
+    class_id = params['class_id']
+    semester = int(params['semester'])
+    sem_week = int(params['sem_week'])
+
+    # ── Latest metrics for this student ──────────────────────────────────────
+    m = (
+        weekly_metrics.objects
+        .filter(student_id=student_id, semester=semester, sem_week__lte=sem_week)
+        .order_by('-sem_week')
+        .first()
+    )
+    if not m:
+        return Response({'error': f'No metrics found for student {student_id}'}, status=404)
+
+    # ── Historical trajectory ─────────────────────────────────────────────────
+    traj = list(
+        weekly_metrics.objects
+        .filter(student_id=student_id, semester=semester, sem_week__lte=sem_week)
+        .order_by('sem_week')
+        .values('sem_week', 'effort_score', 'academic_performance',
+                'overall_att_pct', 'risk_of_detention', 'risk_score')
+    )
+
+    week_et  = [_f(r['effort_score'])        for r in traj]
+    week_at  = [_f(r['academic_performance']) for r in traj]
+
+    avg_effort      = round(sum(week_et) / max(len(week_et), 1), 2)
+    avg_performance = round(sum(week_at) / max(len(week_at), 1), 2)
+    overall_att     = round(_f(m.overall_att_pct), 1)
+    risk_detention  = round(_f(m.risk_of_detention), 1)
+    risk_failing    = round(_f(m.risk_score), 1)
+    midterm_score   = _get_midterm_score(student_id, semester)
+
+    # ── Class averages ────────────────────────────────────────────────────────
+    cls_agg = weekly_metrics.objects.filter(
+        class_id=class_id, semester=semester, sem_week=sem_week
+    ).aggregate(avg_et=Avg('effort_score'), avg_perf=Avg('academic_performance'))
+    class_avg_et   = _f(cls_agg['avg_et'],   65.0)
+    class_avg_perf = _f(cls_agg['avg_perf'], 70.0)
+
+    cls_perf_vals = list(
+        weekly_metrics.objects.filter(
+            class_id=class_id, semester=semester, sem_week=sem_week
+        ).values_list('academic_performance', flat=True)
+    )
+    class_perf_mean = round(
+        sum(_f(v) for v in cls_perf_vals) / max(len(cls_perf_vals), 1), 2
+    )
+
+    # ── Most recent flag (if any) ─────────────────────────────────────────────
+    latest_flag = (
+        weekly_flags.objects
+        .filter(student_id=student_id, semester=semester, sem_week__lte=sem_week)
+        .order_by('-sem_week', '-urgency_score')
+        .first()
+    )
+
+    # ── AI summary ────────────────────────────────────────────────────────────
+    flag_count_qs = weekly_flags.objects.filter(
+        student_id=student_id, semester=semester
+    ).order_by('sem_week')
+
+    student_data = {
+        'E_t':                  _f(m.effort_score),
+        'A_t':                  _f(m.academic_performance) or None,
+        'reasons_for_flagging': latest_flag.diagnosis if latest_flag else 'No flags',
+        'urgency_score':        float(latest_flag.urgency_score or 0) if latest_flag else 0.0,
+        'risk_score':           float(latest_flag.urgency_score or 0) if latest_flag else 0.0,
+        'E_t_history':          week_et[:-1],
+        'A_t_history':          [x for x in week_at if x > 0],
+        'E':                    class_avg_et,
+        'A':                    class_avg_perf,
+        'e':                    avg_effort,
+        'a':                    avg_performance,
+        'del_E':                round(avg_effort - class_avg_et, 2),
+        'del_A':                round(avg_performance - class_avg_perf, 2),
+        'flagging_history': {
+            'times_flagged':         flag_count_qs.count(),
+            'weeks_since_each_flag': [
+                sem_week - f['sem_week']
+                for f in flag_count_qs.values('sem_week')
+            ],
+        },
+        'effort_contributors_student': {
+            'avg_library_visits':         _f(m.library_visits),
+            'avg_book_borrows':           _f(m.book_borrows),
+            'avg_attendance_pct':         _f(m.overall_att_pct) / 100,
+            'avg_assignment_submit_rate': _f(getattr(m, 'assn_submit_rate', None)),
+            'avg_plagiarism_free_rate':   1 - _f(getattr(m, 'assn_plagiarism_pct', None)) / 100,
+            'avg_quiz_attempt_rate':      _f(m.quiz_attempt_rate),
+        },
+        'effort_contributors_class': {
+            'avg_library_visits':         1.8,
+            'avg_book_borrows':           0.9,
+            'avg_attendance_pct':         class_avg_et / 100,
+            'avg_assignment_submit_rate': 0.87,
+            'avg_plagiarism_free_rate':   0.91,
+            'avg_quiz_attempt_rate':      0.78,
+        },
+    }
+
+    ai_summary = None
+    try:
+        from .aiviews import student_summary as ai_student_summary
+        ai_summary = ai_student_summary(student_data)
+    except Exception:
+        ai_summary = None
+
+    # ── Flagging history ──────────────────────────────────────────────────────
+    intervened_weeks = set(
+        intervention_log.objects.filter(
+            student_id=student_id, semester=semester, advisor_notified=True
+        ).values_list('sem_week', flat=True)
+    )
+    all_flags_qs = (
+        weekly_flags.objects
+        .filter(student_id=student_id, semester=semester)
+        .order_by('sem_week')
+        .values('sem_week', 'diagnosis')
+    )
+    flagging_by_week = {
+        f['sem_week']: {
+            'diagnosis':        f['diagnosis'],
+            'did_we_intervene': f['sem_week'] in intervened_weeks,
+        }
+        for f in all_flags_qs
+    }
+    total_interventions = intervention_log.objects.filter(
+        student_id=student_id, semester=semester
+    ).count()
+
+    # ── Trends ────────────────────────────────────────────────────────────────
+    trends = {
+        'E_t': {r['sem_week']: _f(r['effort_score'])                      for r in traj},
+        'A_t': {r['sem_week']: _f(r['academic_performance']) or False      for r in traj},
+    }
+
+    # ── Names / avatar ────────────────────────────────────────────────────────
+    names = _name_map(class_id)
+    name  = names.get(student_id, student_id)
+
+    return Response({
+        'student_id':    student_id,
+        'name':          name,
+        'avatar':        _avatar(name),
+        'risk_level':    _risk_level(latest_flag.risk_tier if latest_flag else ''),
+        'student_overview': {
+            'avg_risk_score':           _cap(latest_flag.urgency_score) if latest_flag else 0,
+            'avg_effort':               avg_effort,
+            'avg_academic_performance': avg_performance,
+            'overall_attendance':       overall_att,
+            'risk_of_detention':        risk_detention,
+            'risk_of_failing':          risk_failing,
+            'mid_term_score':           midterm_score,
+        },
+        'student_summary':    ai_summary,
+        'flagging_history': {
+            'total_flags':    flag_count_qs.count(),
+            'interventions':  total_interventions,
+            'by_week':        flagging_by_week,
+        },
+        'trends':             trends,
+        'effort_vs_performance': {
+            'avg_effort_of_class':        round(class_avg_et, 2),
+            'avg_performance_of_class':   round(class_perf_mean, 2),
+            'avg_effort_of_student':      avg_effort,
+            'avg_performance_of_student': avg_performance,
+            'E_t': _f(m.effort_score),
+            'A_t': _f(m.academic_performance),
+        },
+    })
+
+
 @api_view(['GET'])
 def detainment_risk(request):
     """
@@ -935,7 +1155,6 @@ def detainment_risk(request):
         class_id=class_id,
         semester=semester,
         sem_week=latest_week,
-        risk_of_detention__gte=50,
     ).values('student_id', 'risk_of_detention', 'overall_att_pct')
 
     result = {
@@ -947,24 +1166,7 @@ def detainment_risk(request):
     }
     if result:
         return Response(result)
-    # No one is >= 50%, so just return the single highest-risk student
-    highest = weekly_metrics.objects.filter(
-        class_id=class_id,
-        semester=semester,
-        sem_week=latest_week,
-    ).order_by('-risk_of_detention').values(
-        'student_id', 'risk_of_detention', 'overall_att_pct'
-    ).first()
-
-    if not highest:
-        return Response({})
-
-    return Response({
-        highest['student_id']: {
-            'risk_score':     round(_f(highest['risk_of_detention']), 1),
-            'attendance_pct': round(_f(highest['overall_att_pct']), 1),
-        }
-    })
+    
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  5. EVENT REPORTS
