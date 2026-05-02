@@ -264,7 +264,7 @@ function mergeExpandFlagIntoStudent(base, expanded) {
   const fh = expanded.flagging_history || {};
   const fc = expanded.flagging_contributors || {};
 
-  const weekKeys = Array.from({ length: 14 }, (_, i) => i + 1);
+  const weekKeys = Array.from({ length: currentWeek }, (_, i) => i + 1);
   const weekEt = weekKeys.map(w => trends.E_t?.[w] || null);
   const weekAt = weekKeys.map(w => trends.A_t?.[w] || null);
 
@@ -728,13 +728,13 @@ function openFlaggedDetailInOverlay(s) {
   const sumPanel = document.getElementById('dmSummaryPanel'); if (sumPanel) sumPanel.style.borderLeftColor = r.txt;
 
   const stats = [
-    ['Avg Risk Score',          `${(s.avgRisk||0).toFixed?.(1)??s.avgRisk||0}%`,               (s.avgRisk||0)>60?'var(--red)':(s.avgRisk||0)>40?'var(--amber)':'var(--green)'],
-    ['Avg Effort',              `${(s.avgEt||0).toFixed?.(1)??s.avgEt||0}%`,                   null],
-    ['Avg Academic Performance',`${(s.avgAt||s.academicPerf||0).toFixed?.(1)??(s.avgAt||0)}%`, (s.avgAt||0)<50?'var(--red)':null],
-    ['Overall Attendance',      `${s.overallAttend||s.attendance||0}%`,                        (s.overallAttend||s.attendance||0)<75&&(s.overallAttend||s.attendance||0)>0?'var(--red)':null],
-    ['Risk of Detention',       `${s.riskDetention||0}%`,                                      (s.riskDetention||0)>60?'var(--red)':(s.riskDetention||0)>40?'var(--amber)':'var(--green)'],
-    ['Risk of Failing',         `${(s.riskFail||s.riskScore||0).toFixed?.(1)??(s.riskFail||0)}%`, (s.riskFail||0)>60?'var(--red)':(s.riskFail||0)>40?'var(--amber)':'var(--green)'],
-    ['Midterm Score',           s.midterm!=null&&s.midterm!==undefined?s.midterm:'N/A',        null],
+    ['Avg Risk Score',           `${Math.round(s.avgRisk||0)}%`,                        (s.avgRisk||0)>60?'var(--red)':(s.avgRisk||0)>40?'var(--amber)':'var(--green)'],
+    ['Avg Effort',               `${Math.round(s.avgEt||0)}%`,                          null],
+    ['Avg Academic Performance', `${Math.round(s.avgAt||s.academicPerf||0)}%`,          (s.avgAt||0)<50?'var(--red)':null],
+    ['Overall Attendance',       `${s.overallAttend||s.attendance||0}%`,                (s.overallAttend||s.attendance||0)<75&&(s.overallAttend||s.attendance||0)>0?'var(--red)':null],
+    ['Risk of Detention',        `${s.riskDetention||0}%`,                              (s.riskDetention||0)>60?'var(--red)':(s.riskDetention||0)>40?'var(--amber)':'var(--green)'],
+    ['Risk of Failing',          `${Math.round(s.riskFail||s.riskScore||0)}%`,          (s.riskFail||0)>60?'var(--red)':(s.riskFail||0)>40?'var(--amber)':'var(--green)'],
+    ['Midterm Score',            s.midterm!=null&&s.midterm!==undefined?s.midterm:'N/A', null],
   ];
   const statsEl = document.getElementById('dmStats');
   if (statsEl) statsEl.innerHTML = stats.map(([l,v,c])=>`<div class="dm-stat-row"><span class="dm-stat-label">${l}</span><span class="dm-stat-val" style="${c?`color:${c}`:''}"> ${v}</span></div>`).join('');
@@ -794,7 +794,7 @@ function mergeStudentDetailIntoStudent(base, detail) {
   const trends = detail.trends           || {};
   const fh  = detail.flagging_history    || {};
 
-  const weekKeys = Array.from({ length: 14 }, (_, i) => i + 1);
+  const weekKeys = Array.from({ length: currentWeek }, (_, i) => i + 1);
   const weekEt   = weekKeys.map(w => trends.E_t?.[w] ?? null);
   const weekAt   = weekKeys.map(w => (trends.A_t?.[w] !== false ? trends.A_t?.[w] : null) ?? null);
 

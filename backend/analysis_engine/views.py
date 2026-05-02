@@ -590,13 +590,14 @@ def expand_flag(request, flag_id):
             student_id=sid, semester=semester, advisor_notified=True
         ).values_list('sem_week', flat=True)
     )
+    # NEW
     flagging_history = {
         f['sem_week']: {
             'diagnosis':       f['diagnosis'],
             'did_we_intervene': f['sem_week'] in intervened_weeks,
         }
         for f in weekly_flags.objects.filter(
-            student_id=sid, semester=semester
+            student_id=sid, semester=semester, sem_week__lte=sem_week
         ).order_by('sem_week').values('sem_week', 'diagnosis')
     }
 
