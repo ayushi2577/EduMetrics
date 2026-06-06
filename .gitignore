@@ -1,11 +1,8 @@
-#gitignore
-venv/
+.venv
+backend/.env
 __pycache__/
-.venv/
 *.pyc
-*.pyo
-*.pyd
-.env
-*.sqlite3
-db.sqlite3
-.DS_Store
+backend/**/__pycache__/
+backend/db.sqlite3
+
+

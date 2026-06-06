@@ -1,7 +1,7 @@
 // EduMetrics — js/api.js
 // JWT-authenticated API client  (performance-optimised)
 
-const API_BASE = 'https://edumetrics-8wji.onrender.com';
+const API_BASE = 'https://edumetrics-wswe.onrender.com';
 
 // ── RISK SCORE WEIGHTS (mirrors flagging.py WEIGHTS exactly) ─────────────────
 // Stored here once so any page can reference it without an API call.
