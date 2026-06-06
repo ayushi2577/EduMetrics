@@ -1,5 +1,5 @@
 # ============================================================
-#  analysis_engine/weekly/flagging.py  (v2 — composite risk score)
+#  analysis_engine/weekly/flagging.py  (v3 — composite risk score)
 #
 #  Philosophy
 #  ----------
@@ -15,7 +15,7 @@
 #  ----------------
 #  1. Pull the last 3 qualifying (non-exam, coverage-OK) teaching
 #     weeks from weekly_metrics for every student.
-#  2. Compute seven sub-signals, each normalised to [0, 100].
+#  2. Compute eight sub-signals, each normalised to [0, 100].
 #  3. Combine via weighted sum → risk_score in [0, 100].
 #  4. Rank students within each class → flag top 20%.
 #  5. Override: plagiarism or severe absenteeism always flag
@@ -28,18 +28,23 @@
 #
 #  Sub-signals (see WEIGHTS dict for tunable coefficients)
 #  -------------------------------------------------------
-#  a. risk_of_detention   — policy pressure from cumulative attendance [0-100]
-#  b. et_drop             — pp decline in E_t over qualifying window   [0-100]
-#                           (E_t guaranteed [0-100] by calculator, no cap needed)
-#  c. assn_missed_pct     — avg % of scheduled assignments missed      [0-100]
-#                           across window  (avg of 1 − assn_submit_rate)
-#  d. plag_pct            — max plagiarism % in qualifying window      [0-100]
+#  a. risk_of_detention   — convex transform of detention risk     [0-100]
+#                           signal = (raw/100)² × 100
+#  b. assn_streak         — consecutive weeks of missed assignments [0-100]
+#                           capped at 3, divided by 3, scaled to 100
+#  c. quiz_streak         — consecutive weeks of missed quizzes     [0-100]
+#                           capped at 3, divided by 3, scaled to 100
+#  d. high_risk_streak    — weeks in window where risk_score ≥ 50  [0-100]
+#                           capped at 3, divided by 3, convex transform
 #  e. lag_score_penalty   — how much worse student converts effort
-#                           vs class average                           [0-100]
-#  f. momentum            — avg risk_score of prior 2 qualifying weeks [0-100]
-#                           (risk_score guaranteed [0-100], no cap needed)
-#  g. quiz_missed_pct     — avg % of scheduled quizzes missed          [0-100]
-#                           across window  (avg of 1 − quiz_attempt_rate)
+#                           vs class average                        [0-100]
+#  f. avg_risk_score_3w   — plain average of prior risk_scores      [0-100]
+#  g. avg_at_3w           — average A_t over qualifying window      [0-100]
+#                           inverted: high performance → low signal
+#  h. avg_et_3w           — average E_t over qualifying window      [0-100]
+#                           inverted: high effort → low signal
+#  i. et_drop             — pp decline in E_t oldest → newest       [0-100]
+#                           positive drop (effort fell) → higher signal
 #
 #  Final score
 #  -----------
@@ -89,23 +94,31 @@ EXAM_WEEKS   = {MIDTERM_WEEK, ENDTERM_WEEK}
 # Window of prior teaching weeks fed into the scoring model
 WINDOW_SIZE = 3   # look back up to this many qualifying weeks
 
+# Consecutive-miss streak cap (applies to assn and quiz streaks)
+STREAK_CAP = 3
+
+# Threshold for high-risk-streak signal
+HIGH_RISK_THRESHOLD = 40
+
 # Weights — MUST sum to 100 so the weighted sum lands in [0, 100]
 WEIGHTS = dict(
-    risk_of_detention = 30,   # a
-    et_drop           = 10,   # b
-    assn_streak       = 12,   # c
-    plag_pct          = 10,   # d
-    lag_score_penalty = 15,   # e
-    momentum          = 15,   # f
-    quiz_streak       =  8,   # g
+    risk_of_detention  = 30,   # a — convex transform
+    assn_streak        = 15,   # b — capped-streak of missed assignments
+    quiz_streak        =  8,   # c — capped-streak of missed quizzes
+    high_risk_streak   = 12,   # d — weeks with risk_score ≥ 50, capped 3, convex
+    lag_score_penalty  = 10,   # e — effort-to-performance conversion gap
+    avg_risk_score_3w  =  7,   # f — avg risk_score over qualifying window
+    avg_at_3w          =  5,   # g — avg A_t over window (inverted)
+    avg_et_3w          =  5,   # h — avg E_t over window (inverted)
+    et_drop            =  8,   # i — pp drop in E_t oldest → newest
 )
 assert sum(WEIGHTS.values()) == 100, "WEIGHTS must sum to 100"
 
 # Tier thresholds
 TIER1_PERCENTILE = 90
 TIER2_PERCENTILE = 80
-TIER1_ABS        = 60   # risk_score must also exceed this for Tier 1
-TIER2_ABS        = 35   # risk_score alone above this → Tier 2
+TIER1_ABS        = 50   # risk_score must also exceed this for Tier 1
+TIER2_ABS        = 30   # risk_score alone above this → Tier 2
 
 # Hard-rule override thresholds
 OVERRIDE_PLAG_PCT = 50   # max plag % in window > this  → always Tier 1
@@ -179,6 +192,7 @@ def _week_is_covered(row):
         for c in ('weekly_att_pct', 'quiz_attempt_rate',
                   'assn_submit_rate', 'assn_quality_pct')
     )
+
 
 
 # ══════════════════════════════════════════════════════════════
@@ -309,70 +323,74 @@ def _class_at_et_ratios(all_metric_windows, student_class_map, candidate_weeks):
 
 def _signal_detention_risk(current_week_row):
     """
-    risk_of_detention is already in [0, 100], written by
-    weekly_metrics_calculator.py before this script runs.
-    Falls back to 0 if unavailable.
+    Convex transform: signal = (raw/100)² × 100.
+    Small detention risk stays small; high detention risk hits hard.
+    risk_of_detention is already in [0, 100].
     """
     if current_week_row is None:
         return 0.0
-    return float(current_week_row.get('risk_of_detention') or 0.0)
+    raw = float(current_week_row.get('risk_of_detention') or 0.0)
+    return (raw / 100.0) ** 2 * 100.0
 
 
-def _signal_et_drop(week_rows, qualifying_weeks):
+def _signal_assn_streak(week_rows, qualifying_weeks):
     """
-    Percentage-point drop in E_t from oldest → newest qualifying week.
-    Positive → effort fell (bad). Clipped at 0 so rising effort is neutral,
-    not rewarding. E_t is guaranteed [0, 100] by weekly_metrics_calculator
-    so no upper cap is needed.
+    Count consecutive weeks (from most recent backward) in the qualifying
+    window where the student missed at least one assignment
+    (assn_submit_rate < 1.0).
 
-    qualifying_weeks is descending, so index 0 is newest, -1 is oldest.
+    Capped at STREAK_CAP, divided by STREAK_CAP → [0, 1], scaled to [0, 100].
+
+    Example: 3 consecutive missed weeks → min(3,3)/3 × 100 = 100.
+             1 missed week then submitted → streak = 1 → 33.3.
     """
-    ets = [
-        week_rows[w]['effort_score']
-        for w in qualifying_weeks
-        if w in week_rows and week_rows[w]['effort_score'] is not None
-    ]
-    if len(ets) < 2:
-        return 0.0
-    drop = ets[-1] - ets[0]   # oldest minus newest; positive when effort fell
-    return float(max(0.0, drop))
-
-
-def _signal_assn_missed_pct(week_rows, qualifying_weeks):
-    """
-    Percentage of scheduled assignments missed across the qualifying window.
-
-    assn_submit_rate per week is the fraction of that week's due assignments
-    submitted [0.0–1.0]. The missed fraction for a week = 1 − submit_rate.
-    We average the missed fraction across all qualifying weeks where the rate
-    is non-null, then scale to [0, 100].
-
-    Example: submit_rates of [0.0, 0.5, 1.0] → missed_rates [1.0, 0.5, 0.0]
-             → avg missed = 0.5 → signal = 50.
-    """
-    missed_rates = []
-    for w in qualifying_weeks:
+    streak = 0
+    for w in qualifying_weeks:          # descending: most recent first
         rate = (week_rows.get(w) or {}).get('assn_submit_rate')
-        if rate is not None:
-            missed_rates.append(1.0 - float(rate))
-    if not missed_rates:
-        return 0.0
-    return float((sum(missed_rates) / len(missed_rates)) * 100.0)
+        if rate is not None and float(rate) < 1.0:
+            streak += 1
+        else:
+            break                       # streak broken at first non-miss
+    return float(min(streak, STREAK_CAP) / STREAK_CAP * 100.0)
 
 
-def _signal_quiz_missed_pct(week_rows, qualifying_weeks):
+def _signal_quiz_streak(week_rows, qualifying_weeks):
     """
-    Percentage of scheduled quizzes missed across the qualifying window.
-    Identical logic to _signal_assn_missed_pct but uses quiz_attempt_rate.
+    Count consecutive weeks (most recent first) where the student missed
+    at least one quiz (quiz_attempt_rate < 1.0).
+
+    Capped at STREAK_CAP, divided by STREAK_CAP → [0, 100].
     """
-    missed_rates = []
-    for w in qualifying_weeks:
+    streak = 0
+    for w in qualifying_weeks:          # descending: most recent first
         rate = (week_rows.get(w) or {}).get('quiz_attempt_rate')
-        if rate is not None:
-            missed_rates.append(1.0 - float(rate))
-    if not missed_rates:
-        return 0.0
-    return float((sum(missed_rates) / len(missed_rates)) * 100.0)
+        if rate is not None and float(rate) < 1.0:
+            streak += 1
+        else:
+            break
+    return float(min(streak, STREAK_CAP) / STREAK_CAP * 100.0)
+
+
+def _signal_high_risk_streak(week_rows, qualifying_weeks):
+    """
+    Count qualifying weeks (anywhere in the window, not necessarily
+    consecutive) where the prior risk_score was ≥ HIGH_RISK_THRESHOLD.
+
+    Capped at STREAK_CAP, divided by STREAK_CAP, then convex-transformed:
+        raw_ratio = count / STREAK_CAP          ∈ [0, 1]
+        signal    = raw_ratio² × 100            ∈ [0, 100]
+
+    Convex: one high-risk week barely registers; three consecutive
+    high-risk weeks hits hard (100).
+    """
+    count = sum(
+        1 for w in qualifying_weeks
+        if w in week_rows
+        and week_rows[w].get('risk_score') is not None
+        and float(week_rows[w]['risk_score']) >= HIGH_RISK_THRESHOLD
+    )
+    raw_ratio = min(count, STREAK_CAP) / STREAK_CAP   # [0, 1]
+    return raw_ratio ** 2 * 100.0
 
 
 def _signal_plag(week_rows, qualifying_weeks):
@@ -416,18 +434,78 @@ def _signal_lag_penalty(week_rows, qualifying_weeks, class_at_et_ratio):
     return float(min(penalty, 100.0))
 
 
-def _signal_momentum(week_rows, qualifying_weeks):
+def _signal_avg_risk_score(week_rows, qualifying_weeks):
     """
-    Average risk_score from the most recent 2 qualifying weeks (already [0-100],
-    written back by the previous run of this script).
-    Returns [0, 100].
+    Plain average of prior risk_score values across the qualifying window.
+    risk_score is already in [0, 100] (written by the previous run of this
+    script), so the average is also in [0, 100] with no further transform.
+    Returns 0 if no prior scores are available.
     """
-    prior = [
+    scores = [
         week_rows[w]['risk_score']
         for w in qualifying_weeks
-        if w in week_rows and week_rows[w]['risk_score'] is not None
-    ][:2]
-    return float(sum(prior) / len(prior)) if prior else 0.0
+        if w in week_rows and week_rows[w].get('risk_score') is not None
+    ]
+    if not scores:
+        return 0.0
+    return float(sum(scores) / len(scores))
+
+
+def _signal_avg_at(week_rows, qualifying_weeks):
+    """
+    Average A_t (academic_performance) over the qualifying window,
+    inverted: high performance → low risk signal.
+
+    signal = 100 − avg_at   (A_t guaranteed [0, 100])
+    Returns 0 if no data (missing data is not evidence of good performance
+    but we don't want to penalise data gaps here — lag_penalty handles that).
+    """
+    ats = [
+        week_rows[w]['academic_performance']
+        for w in qualifying_weeks
+        if w in week_rows and week_rows[w].get('academic_performance') is not None
+    ]
+    if not ats:
+        return 0.0
+    return float(max(0.0, 100.0 - (sum(ats) / len(ats))))
+
+
+def _signal_avg_et(week_rows, qualifying_weeks):
+    """
+    Average E_t (effort_score) over the qualifying window, inverted:
+    high effort → low risk signal.
+
+    signal = 100 − avg_et   (E_t guaranteed [0, 100])
+    Returns 0 if no data.
+    """
+    ets = [
+        week_rows[w]['effort_score']
+        for w in qualifying_weeks
+        if w in week_rows and week_rows[w].get('effort_score') is not None
+    ]
+    if not ets:
+        return 0.0
+    return float(max(0.0, 100.0 - (sum(ets) / len(ets))))
+
+
+def _signal_et_drop(week_rows, qualifying_weeks):
+    """
+    Percentage-point drop in E_t from oldest → newest qualifying week.
+    Positive → effort fell (bad). Clipped at 0 so rising effort is neutral,
+    not rewarding. E_t is guaranteed [0, 100] by weekly_metrics_calculator
+    so no upper cap is needed.
+
+    qualifying_weeks is descending, so index 0 is newest, -1 is oldest.
+    """
+    ets = [
+        week_rows[w]['effort_score']
+        for w in qualifying_weeks
+        if w in week_rows and week_rows[w]['effort_score'] is not None
+    ]
+    if len(ets) < 2:
+        return 0.0
+    drop = ets[-1] - ets[0]   # oldest minus newest; positive when effort fell
+    return float(max(0.0, drop))
 
 
 # ══════════════════════════════════════════════════════════════
@@ -436,35 +514,40 @@ def _signal_momentum(week_rows, qualifying_weeks):
 
 def _compute_risk_score(week_rows, qualifying_weeks, current_week_row, class_at_et_ratio):
     """
-    Weighted sum of seven sub-signals, each in [0, 100].
+    Weighted sum of nine sub-signals, each in [0, 100].
     Weights sum to 100 → result is in [0, 100].
 
     Returns (risk_score: int, sub_signals: dict).
     """
     W = WEIGHTS
 
-    a_raw = _signal_detention_risk(current_week_row)
-    a     = (a_raw / 100) ** 2 * 100   # convex: small detention risk stays small,
-                                        # high detention risk hits hard. ceiling = 100.
-    b = _signal_et_drop(week_rows, qualifying_weeks)
-    c = _signal_assn_missed_pct(week_rows, qualifying_weeks)
-    d = _signal_plag(week_rows, qualifying_weeks)
+    a = _signal_detention_risk(current_week_row)                      # convex
+    b = _signal_assn_streak(week_rows, qualifying_weeks)
+    c = _signal_quiz_streak(week_rows, qualifying_weeks)
+    d = _signal_high_risk_streak(week_rows, qualifying_weeks)         # convex
     e = _signal_lag_penalty(week_rows, qualifying_weeks, class_at_et_ratio)
-    f = _signal_momentum(week_rows, qualifying_weeks)
-    g = _signal_quiz_missed_pct(week_rows, qualifying_weeks)
+    f = _signal_avg_risk_score(week_rows, qualifying_weeks)
+    g = _signal_avg_at(week_rows, qualifying_weeks)                   # inverted
+    h = _signal_avg_et(week_rows, qualifying_weeks)                   # inverted
+    i = _signal_et_drop(week_rows, qualifying_weeks)
 
     raw = (
         W['risk_of_detention'] * a +
-        W['et_drop']           * b +
-        W['assn_streak']       * c +
-        W['plag_pct']          * d +
+        W['assn_streak']       * b +
+        W['quiz_streak']       * c +
+        W['high_risk_streak']  * d +
         W['lag_score_penalty'] * e +
-        W['momentum']          * f +
-        W['quiz_streak']       * g
+        W['avg_risk_score_3w'] * f +
+        W['avg_at_3w']         * g +
+        W['avg_et_3w']         * h +
+        W['et_drop']           * i
     ) / 100.0
 
-    risk_score  = int(round(max(0.0, min(raw, 100.0))))
-    sub_signals = dict(a=a_raw, b=b, c=c, d=d, e=e, f=f, g=g)  # a stores raw for diagnosis display
+    risk_score = int(round(max(0.0, min(raw, 100.0))))
+
+    # Store raw detention value for diagnosis display (not the transformed one)
+    a_raw = float(current_week_row.get('risk_of_detention') or 0.0) if current_week_row else 0.0
+    sub_signals = dict(a=a_raw, b=b, c=c, d=d, e=e, f=f, g=g, h=h, i=i)
     return risk_score, sub_signals
 
 
@@ -527,39 +610,56 @@ def _build_diagnosis(sub_signals, override_reasons, qualifying_weeks):
     when they crossed a meaningful threshold.
 
     sub_signals keys:
-        a = detention risk [0-100]
-        b = E_t drop in pp [0-100]
-        c = % assignments missed across window [0-100]
-        d = max plag % [0-100]
+        a = detention risk raw [0-100]           (displayed pre-transform)
+        b = assignment streak signal [0-100]
+        c = quiz streak signal [0-100]
+        d = high-risk streak signal [0-100]      (convex; risk_score ≥ 50)
         e = lag penalty [0-100]
-        f = momentum (avg prior risk score) [0-100]
-        g = % quizzes missed across window [0-100]
+        f = avg risk_score over window [0-100]
+        g = avg A_t signal [0-100]  (inverted; high g = low A_t)
+        h = avg E_t signal [0-100]  (inverted; high h = low E_t)
+        i = E_t drop [0-100]        (pp drop oldest → newest; clipped at 0)
     """
     parts = list(override_reasons)
 
-    a, b, c, d, e, f, g = (
-        sub_signals['a'], sub_signals['b'], sub_signals['c'],
-        sub_signals['d'], sub_signals['e'], sub_signals['f'],
-        sub_signals['g'],
-    )
+    a = sub_signals['a']   # raw detention risk for readability
+    b = sub_signals['b']
+    c = sub_signals['c']
+    d = sub_signals['d']
+    e = sub_signals['e']
+    f = sub_signals['f']
+    g = sub_signals['g']
+    h = sub_signals['h']
+    i = sub_signals['i']
+
+    n_weeks = len(qualifying_weeks)
 
     # Don't re-report what's already captured as an override reason
     if not override_reasons:
         if a >= 60:
             parts.append(f'Detention Risk ({a:.0f}/100)')
-        if d > 30:
-            parts.append(f'Elevated Plagiarism ({d:.0f}%)')
 
-    if b >= 15:
-        parts.append(f'Effort Declining (−{b:.0f}pp over {len(qualifying_weeks)}w)')
-    if c >= 30:
-        parts.append(f'Assignments Missed ({c:.0f}% of scheduled)')
-    if g >= 30:
-        parts.append(f'Quizzes Missed ({g:.0f}% of scheduled)')
+    if b >= 33:   # ≥1 consecutive missed-assignment week
+        streak_count = round(b / 100 * STREAK_CAP)
+        parts.append(f'Assignment Streak ({streak_count}w consecutive missed)')
+    if c >= 33:   # ≥1 consecutive missed-quiz week
+        streak_count = round(c / 100 * STREAK_CAP)
+        parts.append(f'Quiz Streak ({streak_count}w consecutive missed)')
+    if d >= 11:   # at least 1 week with risk_score ≥ 50  → (1/3)² × 100 ≈ 11
+        high_weeks = round(d / 100 * STREAK_CAP)
+        parts.append(f'Persistent High Risk ({high_weeks}w risk_score≥{HIGH_RISK_THRESHOLD})')
     if e >= 25:
         parts.append(f'Poor Effort–Performance Conversion ({e:.0f}/100)')
-    if f >= 20:
-        parts.append(f'Persistent Risk (momentum={f:.0f})')
+    if f >= 50:
+        parts.append(f'Sustained Risk History (avg score={f:.0f} over {n_weeks}w)')
+    if g >= 40:   # avg A_t ≤ 60
+        avg_at = 100.0 - g
+        parts.append(f'Low Academic Performance (avg={avg_at:.0f}/100 over {n_weeks}w)')
+    if h >= 40:   # avg E_t ≤ 60
+        avg_et = 100.0 - h
+        parts.append(f'Low Effort (avg={avg_et:.0f}/100 over {n_weeks}w)')
+    if i >= 15:
+        parts.append(f'Effort Declining (−{i:.0f}pp over {n_weeks}w)')
 
     return ' | '.join(parts) if parts else 'Composite Risk'
 
@@ -603,7 +703,7 @@ def generate_weekly_triage(sem_week=None, semester=None):
     semester : int | None — override live semester  (used by calibrate scripts)
     When both are None, reads live state from ClientSimState.
     """
-    print("=== Composite Risk Scoring Engine (v2) ===")
+    print("=== Composite Risk Scoring Engine (v3) ===")
 
     # ── Resolve week / semester ───────────────────────────────────────────────
     if sem_week is None or semester is None:

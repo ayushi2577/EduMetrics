@@ -1,6 +1,6 @@
 """
 Initial migration — creates all EduMetrics analysis DB tables.
-Column names match analysis_db_schema.sql v2.1 exactly.
+Column names match models.py (analysis_db_schema.sql v2.1) exactly.
 """
 
 from django.db import migrations, models
@@ -39,7 +39,7 @@ class Migration(migrations.Migration):
                 ('computed_at', models.DateTimeField(auto_now_add=True)),
                 # Effort score (E_t)
                 ('effort_score',        models.DecimalField(decimal_places=2, max_digits=5, null=True)),
-                ('library_visits',      models.IntegerField(default=0)),
+                ('library_visits',      models.IntegerField(default=0, null=True, blank=True)),
                 ('book_borrows',        models.IntegerField(default=0)),
                 ('assn_quality_pct',    models.DecimalField(decimal_places=2, max_digits=5, null=True)),
                 ('assn_plagiarism_pct', models.DecimalField(decimal_places=2, max_digits=5, null=True)),
@@ -54,6 +54,9 @@ class Migration(migrations.Migration):
                 # Risk of detention
                 ('risk_of_detention', models.DecimalField(decimal_places=2, max_digits=5, null=True)),
                 ('overall_att_pct',   models.DecimalField(decimal_places=2, max_digits=5, null=True)),
+                # Added in v2
+                ('risk_score',       models.IntegerField(null=True, blank=True, default=None)),
+                ('escalation_level', models.IntegerField(default=0)),
             ],
             options={'db_table': 'weekly_metrics'},
         ),
@@ -68,7 +71,7 @@ class Migration(migrations.Migration):
         ),
         migrations.AddIndex(
             model_name='weekly_metrics',
-            index=models.Index(fields=['student_id'], name='idx_wm_student'),
+            index=models.Index(fields=['student_id', 'semester', 'sem_week'], name='idx_wm_student'),
         ),
 
         # ── pre_mid_term ────────────────────────────────────────────────────
@@ -147,24 +150,28 @@ class Migration(migrations.Migration):
         ),
 
         # ── weekly_flags ─────────────────────────────────────────────────────
+        # NOTE: escalation_level and archetype removed vs original migration.
         migrations.CreateModel(
             name='weekly_flags',
             fields=[
-                ('id',               models.AutoField(primary_key=True, serialize=False)),
-                ('student_id',       models.CharField(max_length=10)),
-                ('class_id',         models.CharField(max_length=20)),
-                ('semester',         models.IntegerField()),
-                ('sem_week',         models.IntegerField()),
-                ('computed_at',      models.DateTimeField(auto_now_add=True)),
-                ('risk_tier',        models.CharField(max_length=40)),
-                ('urgency_score',    models.IntegerField()),
-                ('escalation_level', models.IntegerField(default=0)),
-                ('archetype',        models.CharField(blank=True, max_length=50, null=True)),
-                ('diagnosis',        models.TextField()),
-                ('helpful',          models.BooleanField(default=None, null=True)),
-                ('feedback_at',      models.DateTimeField(blank=True, null=True)),
+                ('id',            models.AutoField(primary_key=True, serialize=False)),
+                ('student_id',    models.CharField(max_length=10)),
+                ('class_id',      models.CharField(max_length=20)),
+                ('semester',      models.IntegerField()),
+                ('sem_week',      models.IntegerField()),
+                ('computed_at',   models.DateTimeField(auto_now_add=True)),
+                ('risk_tier',     models.CharField(max_length=40)),
+                ('urgency_score', models.IntegerField()),
+                ('diagnosis',     models.TextField()),
+                ('helpful',       models.BooleanField(default=None, null=True)),
+                ('feedback_at',   models.DateTimeField(blank=True, null=True)),
             ],
             options={'db_table': 'weekly_flags'},
+        ),
+        migrations.AddConstraint(
+            model_name='weekly_flags',
+            constraint=models.UniqueConstraint(
+                fields=['student_id', 'semester', 'sem_week'], name='uq_wf_student_sem_week'),
         ),
         migrations.AddIndex(
             model_name='weekly_flags',
@@ -172,10 +179,11 @@ class Migration(migrations.Migration):
         ),
         migrations.AddIndex(
             model_name='weekly_flags',
-            index=models.Index(fields=['student_id'], name='idx_wf_student'),
+            index=models.Index(fields=['student_id', 'semester'], name='idx_wf_student'),
         ),
 
         # ── intervention_log ─────────────────────────────────────────────────
+        # NOTE: escalation_level removed vs original migration.
         migrations.CreateModel(
             name='intervention_log',
             fields=[
@@ -191,7 +199,6 @@ class Migration(migrations.Migration):
                 ('semester',         models.IntegerField()),
                 ('sem_week',         models.IntegerField()),
                 ('logged_at',        models.DateTimeField(auto_now_add=True)),
-                ('escalation_level', models.IntegerField(default=1)),
                 ('notes',            models.TextField(blank=True, default='')),
                 # legacy columns (kept nullable for backwards compat)
                 ('trigger_diagnosis', models.TextField(blank=True, default='')),
@@ -209,6 +216,7 @@ class Migration(migrations.Migration):
         ),
 
         # ── pre_sem_watchlist ────────────────────────────────────────────────
+        # NOTE: att_rate_hist, assn_rate_hist, exam_avg_hist are max_digits=6, decimal_places=2.
         migrations.CreateModel(
             name='pre_sem_watchlist',
             fields=[
@@ -220,9 +228,9 @@ class Migration(migrations.Migration):
                 ('risk_probability_pct', models.DecimalField(decimal_places=2, max_digits=5)),
                 ('escalation_level',     models.IntegerField(default=0)),
                 ('max_plagiarism',       models.DecimalField(decimal_places=2, default=0, max_digits=5)),
-                ('att_rate_hist',        models.DecimalField(decimal_places=4, max_digits=5, null=True)),
-                ('assn_rate_hist',       models.DecimalField(decimal_places=4, max_digits=5, null=True)),
-                ('exam_avg_hist',        models.DecimalField(decimal_places=2, max_digits=5, null=True)),
+                ('att_rate_hist',        models.DecimalField(decimal_places=2, max_digits=6, null=True)),
+                ('assn_rate_hist',       models.DecimalField(decimal_places=2, max_digits=6, null=True)),
+                ('exam_avg_hist',        models.DecimalField(decimal_places=2, max_digits=6, null=True)),
                 ('hard_subject_count',   models.IntegerField(default=0)),
             ],
             options={'db_table': 'pre_sem_watchlist'},
@@ -238,9 +246,11 @@ class Migration(migrations.Migration):
         ),
 
         # ── subject_difficulty ───────────────────────────────────────────────
+        # NOTE: added AutoField primary key (missing from original migration).
         migrations.CreateModel(
             name='subject_difficulty',
             fields=[
+                ('id',               models.AutoField(primary_key=True, serialize=False)),
                 ('subject_id',       models.CharField(max_length=20)),
                 ('semester',         models.IntegerField()),
                 ('computed_at',      models.DateTimeField(auto_now=True)),

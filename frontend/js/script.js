@@ -156,6 +156,8 @@ function normaliseFlaggedStudents(raw) {
       reason: f.diagnosis || 'Flagged for review',
       escalation_level: f.escalation_level,
       flagHistory: [],
+      // ADD inside the return object in normaliseFlaggedStudents:
+      topSignal: f.top_signal || null,   // { key, value }
     };
   });
 }
@@ -236,9 +238,14 @@ function normaliseLastWeekFlags(raw) {
       etPrev: Math.round(etPrev), etCurr,
       atPrev: Math.round(atPrev), atCurr,
       riskPrev: Math.round(rkPrev), riskCurr,
-      recovery: Math.max(5, 100 - riskCurr),
+      flaggedAgain: f.more?.flagged_again ?? null,
       intervention: null,
       factors: buildFactorsFromDiagnosis(diagnosis, Math.round(more.avg_risk_score || 0)),
+      topSignal:        f.top_signal         || null,
+      weekN:            f.week_n             || null,   // all metrics at flag week
+      weekN1:           f.week_n1            || null,   // all metrics this week
+      riskBreakdownPrev: f.risk_breakdown_prev || [],
+      riskBreakdownCurr: f.risk_breakdown_curr || [],
     };
   });
 }
@@ -299,6 +306,8 @@ function mergeExpandFlagIntoStudent(base, expanded) {
     factors, flagHistory,
     majorFactor: factors.length ? factors[0].label : '',
     aiSummary: expanded.student_summary || null,
+    riskBreakdown:  expanded.risk_score_breakdown  || [],
+    riskPercentiles: expanded.risk_percentiles     || null,
     etThisWeek: Math.round(evp.E_t || 0),
     perfThisWeek: Math.round(evp.A_t || 0),
     studentAvgEt: Math.round(evp.avg_effort_of_student || 0),
@@ -323,6 +332,12 @@ function riskTierToLevel(tier) {
   if (t.includes('tier 2') || t.includes('watch')) return 'med';
   if (t.includes('tier 3') || t.includes('warning')) return 'low';
   return 'safe';
+}
+
+function topFactorLabel(topSignal) {
+  if (!topSignal || !topSignal.key) return null;
+  const fn = RISK_CARD_LABEL[topSignal.key];
+  return fn ? fn(topSignal.value) : null;
 }
 
 function buildFactorsFromDiagnosis(diagnosis, totalScore) {
@@ -355,6 +370,7 @@ function statusCfg(s) {
   };
   return m[s] || m.monitor;
 }
+
 
 // ── THEME (locked to light — toggle removed from UI) ──────────────────────────
 function setTheme() { /* light mode is permanent; no-op */ }
@@ -456,8 +472,7 @@ function buildFlaggedCards() {
     card.innerHTML = `
       <div class="flag-top-row">
         <div class="flag-identity">
-          <div class="flag-av" style="background:${r.bg};color:${r.txt};// NEW
-          width:28px;height:28px;...font-size:10px;flex-shrink:0">${s.avatar}</div>
+          <div class="flag-av" style="background:${r.bg};color:${r.txt};width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:10px;flex-shrink:0">${s.avatar}</div>
           <div>
             <div class="flag-name">${s.name}</div>
             <div class="flag-id">${s.id}</div>
@@ -467,8 +482,22 @@ function buildFlaggedCards() {
           <span class="rpd" style="background:${r.txt}"></span>${r.label}
         </span>
       </div>
-      <div class="flag-reason">${s.reason}</div>
+      <div class="flag-top-factor" style="border-left:3px solid ${r.txt}">
+        ${topFactorLabel(s.topSignal) || s.reason.split('|')[0].trim()}
       </div>
+      <div class="flag-stats-row">
+        <div class="flag-stat">
+          <div class="flag-stat-label">ATTEND.</div>
+          <div class="flag-stat-val" style="color:${s.attendance<65?'var(--red)':s.attendance<75?'var(--amber)':'var(--green)'}">${s.attendance}%</div>
+        </div>
+        <div class="flag-stat">
+          <div class="flag-stat-label">RISK</div>
+          <div class="flag-stat-val" style="color:${s.riskScore>=70?'var(--red)':s.riskScore>=45?'var(--amber)':'var(--green)'}">${s.riskScore}%</div>
+        </div>
+        <div class="flag-stat">
+          <div class="flag-stat-label">FLAGS</div>
+          <div class="flag-stat-val">${s.escalation_level || 1}</div>
+        </div>
       </div>
       <div class="flag-btn-row">
         <button class="view-btn" style="background:${r.bg};color:${r.txt};border:1px solid ${r.border}" onclick="openFlaggedDetail('${s.id}')">View Details →</button>
@@ -491,7 +520,8 @@ function buildLastWeekCards() {
     card.innerHTML = `
       <div class="flag-top-row">
         <div class="flag-identity">
-            <div class="flag-av" style="background:${r.bg};color:${r.txt};width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:10px;flex-shrink:0">${s.avatar}</div>
+          <div class="flag-av" style="background:${r.bg};color:${r.txt};width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:10px;flex-shrink:0">${s.avatar}</div>
+          <div>
             <div class="flag-name">${s.name}</div>
             <div class="flag-id">${s.id}</div>
           </div>
@@ -500,12 +530,28 @@ function buildLastWeekCards() {
           <span class="rpd" style="background:${r.txt}"></span>${r.label}
         </span>
       </div>
-      <div class="flag-reason">${s.reason}</div>
-      <div class="flag-btn-row">
+      <div class="flag-top-factor" style="border-left:3px solid ${r.txt}">
+        ${topFactorLabel(s.topSignal) || s.reason.split('|')[0].trim()}
+      </div>
+      ${_lwSignalDelta(s.topSignal, r)}
+      <div class="flag-btn-row" style="margin-top:8px">
         <button class="view-btn" style="background:${r.bg};color:${r.txt};border:1px solid ${r.border}" onclick="openLwDetailById('${s.id}')">View Details →</button>
       </div>`;
     lwg.appendChild(card);
   });
+}
+
+function _lwSignalDelta(topSignal, r) {
+  if (!topSignal || topSignal.pct_change === null || topSignal.pct_change === undefined) return '';
+  const pct    = topSignal.pct_change;
+  const isGood = pct <= 0;   // for risk signals, going down is good
+  const color  = isGood ? 'var(--green)' : 'var(--red)';
+  const arrow  = pct > 0 ? '▲' : '▼';
+  const sign   = pct > 0 ? '+' : '';
+  return `<div class="lw-delta-row">
+    <span class="lw-delta-label">Since flagged:</span>
+    <span class="lw-delta-val" style="color:${color}">${arrow} ${sign}${pct}%</span>
+  </div>`;
 }
 
 // ── LAST WEEK DETAIL ──────────────────────────────────────────────────────────
@@ -516,45 +562,153 @@ function openLwDetailById(id) {
 }
 
 function openLwDetail(idx) {
-  const s = LAST_WEEK[idx]; const r = rc(s.risk); const sc = statusCfg(s.status);
-  document.getElementById('lwDmAv').textContent = s.avatar;
-  document.getElementById('lwDmAv').style.cssText = `background:${r.bg};color:${r.txt};width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;flex-shrink:0`;
+  const s  = LAST_WEEK[idx];
+  const r  = rc(s.risk);
+  const sc = statusCfg(s.status);
+ 
+  // Header
+  const avEl = document.getElementById('lwDmAv');
+  avEl.textContent = s.avatar;
+  avEl.style.cssText = `background:${r.bg};color:${r.txt};width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;flex-shrink:0`;
   document.getElementById('lwDmTitle').textContent = s.name;
-  document.getElementById('lwDmSub').textContent = s.id;
-  document.getElementById('lwDmRisk').innerHTML = `<span class="rpd" style="background:${r.txt}"></span>${r.label}`;
-  document.getElementById('lwDmRisk').style.cssText = `background:${r.bg};color:${r.txt};border:1px solid ${r.border};display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:700;padding:4px 10px;border-radius:20px`;
-  const etDir = s.etCurr >= s.etPrev, atDir = s.atCurr >= s.atPrev, rkDir = s.riskCurr >= s.riskPrev;
+  document.getElementById('lwDmSub').textContent   = s.id;
+  const pillEl = document.getElementById('lwDmRisk');
+  pillEl.innerHTML = `<span class="rpd" style="background:${r.txt}"></span>${r.label}`;
+  pillEl.style.cssText = `background:${r.bg};color:${r.txt};border:1px solid ${r.border};display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:700;padding:4px 10px;border-radius:20px`;
+ 
+  // Metric comparison table
+  const wn  = s.weekN  || {};
+  const wn1 = s.weekN1 || {};
+ 
+  const METRIC_ROWS = [
+    { label: 'Effort Score',          key: 'effort_score',         unit: '%',  higherGood: true  },
+    { label: 'Academic Performance',  key: 'academic_performance', unit: '%',  higherGood: true  },
+    { label: 'Weekly Attendance',     key: 'weekly_att_pct',       unit: '%',  higherGood: true  },
+    { label: 'Overall Attendance',    key: 'overall_att_pct',      unit: '%',  higherGood: true  },
+    { label: 'Risk of Detention',     key: 'risk_of_detention',    unit: '/100', higherGood: false },
+    { label: 'Risk Score',            key: 'risk_score',           unit: '',   higherGood: false },
+    { label: 'Quiz Avg',              key: 'quiz_avg_pct',         unit: '%',  higherGood: true  },
+    { label: 'Assignment Avg',        key: 'assn_avg_pct',         unit: '%',  higherGood: true  },
+    { label: 'Assignment Submit Rate',key: 'assn_submit_rate',     unit: '',   higherGood: true  },
+    { label: 'Quiz Attempt Rate',     key: 'quiz_attempt_rate',    unit: '',   higherGood: true  },
+  ];
+ 
+  function _pctChange(prev, curr) {
+    if (prev == null || prev === 0) return null;
+    return ((curr - prev) / Math.abs(prev) * 100).toFixed(1);
+  }
+ 
+  const metricRowsHTML = METRIC_ROWS.map(row => {
+    const prev = wn[row.key]  ?? '—';
+    const curr = wn1[row.key] ?? '—';
+    if (prev === '—' && curr === '—') return '';
+ 
+    const prevNum = parseFloat(prev);
+    const currNum = parseFloat(curr);
+    const pct     = (!isNaN(prevNum) && !isNaN(currNum)) ? _pctChange(prevNum, currNum) : null;
+ 
+    let pctHTML = '';
+    if (pct !== null) {
+      const improved = row.higherGood ? currNum >= prevNum : currNum <= prevNum;
+      const color    = improved ? 'var(--green)' : 'var(--red)';
+      const arrow    = currNum > prevNum ? '▲' : currNum < prevNum ? '▼' : '→';
+      const sign     = parseFloat(pct) > 0 ? '+' : '';
+      pctHTML = `<span class="lw-pct-change" style="color:${color}">${arrow} ${sign}${pct}%</span>`;
+    }
+ 
+    return `<tr>
+      <td class="lw-cmp-label">${row.label}</td>
+      <td class="lw-cmp-val">${prev}${row.unit}</td>
+      <td class="lw-cmp-val">${curr}${row.unit}</td>
+      <td class="lw-cmp-delta">${pctHTML}</td>
+    </tr>`;
+  }).join('');
+ 
+  // Risk breakdown comparison
+  function _breakdownTable(bd, title) {
+    if (!bd || !bd.length) return '';
+    const totalScore = bd.reduce((s, r) => s + r.contribution, 0).toFixed(1);
+    return `
+      <div class="lw-bd-title">${title}</div>
+      <table class="risk-bd-table">
+        <thead><tr>
+          <th>Factor</th><th>Value</th><th>Contributed</th><th>Max</th>
+        </tr></thead>
+        <tbody>
+          ${bd.map(row => {
+            const pct = row.max_contribution > 0 ? row.contribution / row.max_contribution : 0;
+            const bc  = pct > 0.7 ? 'var(--red)' : pct > 0.4 ? 'var(--amber)' : 'var(--green)';
+            return `<tr>
+              <td class="risk-bd-label">${row.label}</td>
+              <td class="risk-bd-val">${row.current_value}${row.unit}</td>
+              <td class="risk-bd-contrib">
+                <div class="risk-bd-bar-wrap"><div class="risk-bd-bar" style="width:${Math.round(pct*100)}%;background:${bc}"></div></div>
+                <span>${row.contribution}</span>
+              </td>
+              <td class="risk-bd-max">${row.max_contribution}</td>
+            </tr>`;
+          }).join('')}
+          <tr class="risk-bd-total">
+            <td colspan="2"><strong>Total Risk Score</strong></td>
+            <td><strong>${totalScore}</strong></td>
+            <td><strong>100</strong></td>
+          </tr>
+        </tbody>
+      </table>`;
+  }
+ 
+  const etDir = s.etCurr >= s.etPrev;
+  const rkDir = s.riskCurr >= s.riskPrev;
+ 
   document.getElementById('lwDmBody').innerHTML = `
+ 
+    <!-- Week N vs N+1 metrics table -->
+    <div class="dm-panel">
+      <div class="lw-section-label">Week ${wn.week || '?'} → Week ${wn1.week || '?'} Comparison</div>
+      <table class="lw-cmp-table">
+        <thead><tr>
+          <th>Metric</th>
+          <th>Week ${wn.week || 'N'} (flagged)</th>
+          <th>Week ${wn1.week || 'N+1'} (now)</th>
+          <th>Change</th>
+        </tr></thead>
+        <tbody>${metricRowsHTML}</tbody>
+      </table>
+    </div>
+ 
+    <!-- Risk score breakdowns side by side -->
     <div class="lw-two-col">
       <div class="dm-panel">
-        <div class="lw-section-label">About the Student</div>
-        <div class="lw-stat-row"><span class="lw-stat-label">Avg Risk Score</span><span class="lw-stat-val">${s.avgRisk}%</span></div>
-        <div class="lw-stat-row"><span class="lw-stat-label">Avg Effort</span><span class="lw-stat-val">${s.avgEt}%</span></div>
-        <div class="lw-stat-row"><span class="lw-stat-label">Avg Academic Perf</span><span class="lw-stat-val">${s.avgAt}%</span></div>
-        <div class="lw-stat-row"><span class="lw-stat-label">Overall Attendance</span><span class="lw-stat-val">${s.overallAttend}%</span></div>
-        <div class="lw-stat-row"><span class="lw-stat-label">Risk of Detention</span><span class="lw-stat-val" style="color:${s.riskDetention > 60 ? 'var(--red)' : s.riskDetention > 40 ? 'var(--amber)' : 'var(--green)'}">${s.riskDetention}%</span></div>
-        <div class="lw-stat-row"><span class="lw-stat-label">Risk of Failing</span><span class="lw-stat-val" style="color:${s.riskFailing > 60 ? 'var(--red)' : s.riskFailing > 40 ? 'var(--amber)' : 'var(--green)'}">${s.riskFailing}%</span></div>
-        <div class="lw-stat-row"><span class="lw-stat-label">Midterm Score</span><span class="lw-stat-val">${s.midterm}</span></div>
+        ${_breakdownTable(s.riskBreakdownPrev, `Risk Breakdown — Week ${wn.week || 'N'}`)}
       </div>
       <div class="dm-panel">
-        <div class="lw-section-label">Reason for Flagging</div>
-        ${(s.factors || []).map(f => `<div class="factor-bar-row"><div class="factor-bar-top"><span class="factor-bar-label">${f.label}</span><span class="factor-bar-pct" style="color:${f.color}">${f.pct}%</span></div><div class="factor-bar-track"><div class="factor-bar-fill" style="width:${f.pct}%;background:${f.color}"></div></div></div>`).join('')}
+        ${_breakdownTable(s.riskBreakdownCurr, `Risk Breakdown — Week ${wn1.week || 'N+1'}`)}
       </div>
     </div>
-    <div class="dm-panel">
-      <div class="lw-section-label">This Week vs Last Week</div>
-      <div class="situation-grid">
-        <div class="sit-item"><div class="sit-label">Effort</div><div class="sit-vals"><span class="sit-val">${s.etCurr}%</span><span class="sit-arrow" style="color:${etDir ? 'var(--green)' : 'var(--red)'}">${etDir ? '▲' : '▼'}</span><span class="sit-change" style="color:${etDir ? 'var(--green)' : 'var(--red)'}">${Math.abs(s.etCurr - s.etPrev)}</span></div><div style="font-size:10px;color:var(--txt3);margin-top:3px">prev: ${s.etPrev}%</div></div>
-        <div class="sit-item"><div class="sit-label">Acad. Perf</div><div class="sit-vals"><span class="sit-val">${s.atCurr}%</span><span class="sit-arrow" style="color:${atDir ? 'var(--green)' : 'var(--red)'}">${atDir ? '▲' : '▼'}</span><span class="sit-change" style="color:${atDir ? 'var(--green)' : 'var(--red)'}">${Math.abs(s.atCurr - s.atPrev)}</span></div><div style="font-size:10px;color:var(--txt3);margin-top:3px">prev: ${s.atPrev}%</div></div>
-        <div class="sit-item"><div class="sit-label">Risk Score</div><div class="sit-vals"><span class="sit-val" style="color:${rkDir ? 'var(--red)' : 'var(--green)'}">${s.riskCurr}%</span><span class="sit-arrow" style="color:${rkDir ? 'var(--red)' : 'var(--green)'}">${rkDir ? '▲' : '▼'}</span><span class="sit-change" style="color:${rkDir ? 'var(--red)' : 'var(--green)'}">${Math.abs(s.riskCurr - s.riskPrev)}</span></div><div style="font-size:10px;color:var(--txt3);margin-top:3px">prev: ${s.riskPrev}%</div></div>
-      </div>
-    </div>
+ 
+    <!-- Bottom row: status / recovery / intervention (preserved) -->
     <div class="lw-bottom">
-      <div class="lw-bottom-item"><div class="lw-bottom-label">Recovery %</div><div class="lw-bottom-val" style="color:${s.recovery < 30 ? 'var(--red)' : s.recovery < 55 ? 'var(--amber)' : 'var(--green)'}">${s.recovery}%</div><div style="height:4px;background:var(--bg3);border-radius:10px;margin-top:8px;overflow:hidden"><div style="height:100%;width:${s.recovery}%;background:${s.recovery < 30 ? 'var(--red)' : s.recovery < 55 ? 'var(--amber)' : 'var(--green)'};border-radius:10px"></div></div></div>
-      <div class="lw-bottom-item"><div class="lw-bottom-label">Status</div><span class="status-pill" style="background:${sc.bg};color:${sc.txt};border:1px solid ${sc.border}">${sc.label}</span></div>
-      <div class="lw-bottom-item"><div class="lw-bottom-label">Intervention</div><div style="font-size:11.5px;color:var(--txt2);line-height:1.55;margin-top:4px">${s.intervention || 'None recorded'}</div></div>
+      <div class="lw-bottom-item">
+        <div class="lw-bottom-label">Flagged Again?</div>
+        ${s.flaggedAgain === true
+          ? `<span class="status-pill" style="background:rgba(248,81,73,0.1);color:var(--red);border:1px solid rgba(248,81,73,0.3)">⚑ Yes — still at risk</span>`
+          : s.flaggedAgain === false
+          ? `<span class="status-pill" style="background:rgba(63,185,80,0.1);color:var(--green);border:1px solid rgba(63,185,80,0.3)">✓ No — cleared this week</span>`
+          : `<span style="color:var(--txt3);font-size:12px">Not Flagged This Week</span>`
+        }
+      </div>
+      <div class="lw-bottom-item">
+        <div class="lw-bottom-label">Status</div>
+        <span class="status-pill" style="background:${sc.bg};color:${sc.txt};border:1px solid ${sc.border}">${sc.label}</span>
+      </div>
+      <div class="lw-bottom-item">
+        <div class="lw-bottom-label">Intervention</div>
+        <div style="font-size:11.5px;color:var(--txt2);line-height:1.55;margin-top:4px">${s.intervention||'None recorded'}</div>
+      </div>
     </div>`;
-  document.getElementById('lwOverlay').classList.add('open'); document.body.style.overflow = 'hidden';
+ 
+  document.getElementById('lwOverlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
 }
 
 function closeLwOverlay() { document.getElementById('lwOverlay').classList.remove('open'); document.body.style.overflow = ''; }
@@ -749,17 +903,101 @@ function openFlaggedDetailInOverlay(s) {
     fhBody.innerHTML = fh.length
       ? fh.map(f => {
           const wk = f.week||f.sem_week||'?';
-          const diag = f.diagnosis||'Flagged';
+          const diag = (f.diagnosis||'Flagged').split('|')[0].trim();
           const intBadge = f.intervened ? `<span style="background:rgba(63,185,80,0.12);color:#3fb950;border:1px solid rgba(63,185,80,0.3);font-size:9.5px;padding:2px 7px;border-radius:10px;font-weight:700">Intervened</span>` : '';
           return `<tr><td>W${wk}</td><td>${diag}</td><td>${intBadge||'—'}</td></tr>`;
         }).join('')
       : `<tr><td colspan="3" style="color:var(--txt3);font-size:12px">No flag history available</td></tr>`;
   }
 
-  const factorsEl = document.getElementById('dmFactors');
-  if (factorsEl) factorsEl.innerHTML = (s.factors||[]).map(f=>`<div class="factor-bar-row"><div class="factor-bar-top"><span class="factor-bar-label">${f.label}</span><span class="factor-bar-pct" style="color:${f.color}">${f.pct}%</span></div><div class="factor-bar-track"><div class="factor-bar-fill" style="width:${f.pct}%;background:${f.color}"></div></div></div>`).join('');
-  const majorNote = document.getElementById('dmMajorNote');
-  if (majorNote) majorNote.textContent = s.majorFactor ? `Primary driver: ${s.majorFactor}` : '';
+  
+  
+  // ── Risk Score Breakdown table + percentile strip ─────────────────────────
+  const rbEl = document.getElementById('dmRiskBreakdown');
+  if (rbEl) {
+    const bd = s.riskBreakdown || [];
+    const rp = s.riskPercentiles || null;
+    const totalScore = s.riskScore || s.avgRisk || 0;
+
+    // Table
+    const tableHTML = bd.length ? `
+      <table class="risk-bd-table">
+        <thead>
+          <tr>
+            <th>Factor</th>
+            <th title="Current measured value">Current</th>
+            <th title="Points contributed to risk score">Contributed</th>
+            <th title="Maximum possible contribution">Max</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${bd.map(row => {
+            const pct = row.max_contribution > 0 ? row.contribution / row.max_contribution : 0;
+            const barColor = pct > 0.7 ? 'var(--red)' : pct > 0.4 ? 'var(--amber)' : 'var(--green)';
+            return `<tr>
+              <td class="risk-bd-label">${row.label}</td>
+              <td class="risk-bd-val">${row.current_value}${row.unit}</td>
+              <td class="risk-bd-contrib">
+                <div class="risk-bd-bar-wrap">
+                  <div class="risk-bd-bar" style="width:${Math.round(pct*100)}%;background:${barColor}"></div>
+                </div>
+                <span>${row.contribution}</span>
+              </td>
+              <td class="risk-bd-max">${row.max_contribution}</td>
+            </tr>`;
+          }).join('')}
+          <tr class="risk-bd-total">
+            <td colspan="2"><strong>Total Risk Score</strong></td>
+            <td><strong>${totalScore}</strong></td>
+            <td><strong>100</strong></td>
+          </tr>
+        </tbody>
+      </table>` : '<p style="color:var(--txt3);font-size:12px">Breakdown unavailable</p>';
+
+    // Percentile strip
+    let stripHTML = '';
+    if (rp) {
+      const score = rp.student_score;
+      const p0 = rp.p0, p100 = rp.p100;
+      const range = Math.max(p100 - p0, 1);
+      const toPos = v => Math.round(((v - p0) / range) * 100);
+
+      const markers = [
+        { pct: toPos(rp.p0),   label: 'Min',    val: rp.p0 },
+        { pct: toPos(rp.p25),  label: 'P25',    val: rp.p25 },
+        { pct: toPos(rp.p50),  label: 'P50',    val: rp.p50 },
+        { pct: toPos(rp.p75),  label: 'P75',    val: rp.p75 },
+        { pct: toPos(rp.p100), label: 'Max',    val: rp.p100 },
+      ];
+      const studentPos = toPos(score);
+      const studentColor = score > rp.p75 ? 'var(--red)' : score > rp.p50 ? 'var(--amber)' : 'var(--green)';
+
+      stripHTML = `
+        <div class="risk-pct-section">
+          <div class="risk-pct-title">Class Risk Score Distribution
+            <span class="risk-pct-badge" style="background:${studentColor}20;color:${studentColor};border:1px solid ${studentColor}40">
+              ${rp.student_percentile}th percentile
+            </span>
+          </div>
+          <div class="risk-pct-track-wrap">
+            <div class="risk-pct-track">
+              ${markers.map(m => `
+                <div class="risk-pct-tick" style="left:${m.pct}%">
+                  <div class="risk-pct-tick-line"></div>
+                  <div class="risk-pct-tick-val">${m.val}</div>
+                  <div class="risk-pct-tick-label">${m.label}</div>
+                </div>`).join('')}
+              <div class="risk-pct-student" style="left:${studentPos}%;border-color:${studentColor}">
+                <div class="risk-pct-student-dot" style="background:${studentColor}"></div>
+                <div class="risk-pct-student-label" style="color:${studentColor}">Score: ${score}</div>
+              </div>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    rbEl.innerHTML = tableHTML + stripHTML;
+  }
 
   const riskPct = s.riskFail||s.riskScore||0;
   const recPct  = s.recovery||Math.max(5,100-riskPct);
@@ -1020,6 +1258,7 @@ async function lockIntervention() {
   setTimeout(() => toast.classList.add('show'), 10);
   setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 400); }, 3000);
 }
+
 
 function mailStudent() { if (!currentStudent) return; alert(`📧 Email sent to ${currentStudent.name}`); }
 function mailParents() { if (!currentStudent) return; alert(`📧 Email sent to parents of ${currentStudent.name}`); }
@@ -1426,3 +1665,296 @@ function showToast(msg) {
   setTimeout(() => toast.classList.add('show'), 10);
   setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 400); }, 3000);
 }
+
+
+
+
+
+
+
+
+
+// =============================================================================
+// script.js ADDITIONS
+// Paste this entire block at the bottom of js/script.js.
+// =============================================================================
+
+// ── PER-SESSION AI ANALYSIS CACHE ─────────────────────────────────────────────
+// Keyed by flag_id so repeat opens of the same card don't re-call Gemini.
+// Cleared when currentWeek changes (same place as _expandCache.clear()).
+const _aiAnalysisCache = new Map();
+
+// ── ADD to changeWeek() — one extra line inside that function: ─────────────────
+// _aiAnalysisCache.clear();
+// (Add it right after `_expandCache.clear();` in the existing changeWeek function)
+
+
+// ── INTERVENTION METADATA ──────────────────────────────────────────────────────
+// Maps AI recommendation keys → human labels and icons shown in the UI panel.
+const AI_INTERVENTION_META = {
+  monitor: {
+    icon: '👁️',
+    label: 'Monitor — No Action Yet',
+    desc: 'The AI recommends observing for another week before intervening.',
+    color: 'var(--txt3)',
+    actions: [],
+  },
+  email_student: {
+    icon: '✉️',
+    label: 'Email the Student',
+    desc: 'A check-in email is the right first step.',
+    color: 'var(--accent2)',
+    actions: [
+      { key: 'email_to_student', label: '✉️ Generate Student Email' },
+    ],
+  },
+  one_to_one_check: {
+    icon: '💬',
+    label: 'One-on-One Check-in',
+    desc: 'Schedule a face-to-face meeting with the student.',
+    color: '#58a6ff',
+    actions: [
+      { key: 'email_to_student',        label: '✉️ Email Student First' },
+      { key: 'one_to_one_conversation', label: '📋 Generate Meeting Guide' },
+    ],
+  },
+  email_parent: {
+    icon: '📞',
+    label: 'Contact Parent / Guardian',
+    desc: 'The situation warrants parental involvement.',
+    color: 'var(--amber)',
+    actions: [
+      { key: 'email_to_parent',   label: '📧 Generate Parent Email' },
+      { key: 'email_to_student',  label: '✉️ Generate Student Email' },
+    ],
+  },
+  refer_to_counsellor: {
+    icon: '🏥',
+    label: 'Refer to Counsellor',
+    desc: 'Escalate to student counselling services immediately.',
+    color: 'var(--red)',
+    actions: [
+      { key: 'counsellor_report',  label: '📄 Generate Counsellor Report' },
+      { key: 'email_to_parent',    label: '📧 Generate Parent Email' },
+      { key: 'email_to_student',   label: '✉️ Generate Student Email' },
+    ],
+  },
+};
+
+const AI_URGENCY_COLOR = {
+  low:      'var(--green)',
+  moderate: 'var(--amber)',
+  high:     'var(--amber)',
+  critical: 'var(--red)',
+};
+
+
+// ── STEP 1: "Analyse with AI" button click ────────────────────────────────────
+// Called from the flag card's "Analyse with AI" button in the detail overlay.
+// currentStudent must be set before calling.
+
+async function runAIAnalysis() {
+  const flagId = currentStudent && (currentStudent.flagId || STUDENT_TO_FLAG_ID[currentStudent.id]);
+  if (!flagId) {
+    showAIPanel({ error: 'No flag ID found for this student.' });
+    return;
+  }
+
+  // Return cached result immediately if available
+  if (_aiAnalysisCache.has(flagId)) {
+    renderAIPanel(_aiAnalysisCache.get(flagId), flagId);
+    return;
+  }
+
+  setAIPanelLoading(true);
+
+  try {
+    const result = await fetchStudentSummaryAI(flagId, SEMESTER, currentWeek);
+    _aiAnalysisCache.set(flagId, result);
+    renderAIPanel(result, flagId);
+  } catch (err) {
+    renderAIPanel({ error: err.message || 'AI analysis failed. Please try again.' }, flagId);
+  } finally {
+    setAIPanelLoading(false);
+  }
+}
+
+
+// ── STEP 2: Render AI analysis panel ──────────────────────────────────────────
+
+function setAIPanelLoading(isLoading) {
+  const panel = document.getElementById('aiAnalysisPanel');
+  if (!panel) return;
+  panel.style.display = 'block';
+  if (isLoading) {
+    panel.innerHTML = `
+      <div class="ai-panel-loading">
+        <div class="api-spinner"></div>
+        <span>Analysing with AI…</span>
+      </div>`;
+  }
+}
+
+function renderAIPanel(result, flagId) {
+  const panel = document.getElementById('aiAnalysisPanel');
+  if (!panel) return;
+  panel.style.display = 'block';
+
+  if (result.error) {
+    panel.innerHTML = `<div class="api-error" style="margin:0">⚠ ${result.error}</div>`;
+    return;
+  }
+
+  const intervention = result.recommended_intervention || 'monitor';
+  const meta = AI_INTERVENTION_META[intervention] || AI_INTERVENTION_META.monitor;
+  const urgency = result.urgency || 'moderate';
+  const urgencyColor = AI_URGENCY_COLOR[urgency] || 'var(--amber)';
+  const secondary = result.secondary_intervention;
+  const secMeta = secondary ? (AI_INTERVENTION_META[secondary] || null) : null;
+
+  // Talking points HTML
+  const talkingPointsHTML = (result.talking_points || []).length
+    ? `<div class="ai-section-label">Key Talking Points</div>
+       <ul class="ai-talking-points">
+         ${(result.talking_points || []).map(pt => `<li>${pt}</li>`).join('')}
+       </ul>`
+    : '';
+
+  // Action buttons for generating content
+  const actionsHTML = meta.actions.length
+    ? `<div class="ai-section-label" style="margin-top:12px">Generate Communication</div>
+       <div class="ai-action-btns">
+         ${meta.actions.map(a => `
+           <button class="ai-action-btn" onclick="generateAIContent('${a.key}', ${flagId})">
+             ${a.label}
+           </button>`).join('')}
+         ${secMeta && secMeta.actions.length
+           ? secMeta.actions.map(a => `
+               <button class="ai-action-btn ai-action-btn--secondary"
+                       onclick="generateAIContent('${a.key}', ${flagId})">
+                 ${a.label}
+               </button>`).join('')
+           : ''}
+       </div>`
+    : '';
+
+  panel.innerHTML = `
+    <div class="ai-panel-header">
+      <span class="ai-panel-title">🤖 AI Analysis</span>
+      <span class="ai-urgency-badge" style="background:${urgencyColor}22;color:${urgencyColor};border:1px solid ${urgencyColor}44">
+        ${urgency.charAt(0).toUpperCase() + urgency.slice(1)} Urgency
+      </span>
+    </div>
+
+    <div class="ai-recommendation-box" style="border-left:3px solid ${meta.color}">
+      <div class="ai-rec-icon">${meta.icon}</div>
+      <div class="ai-rec-content">
+        <div class="ai-rec-label" style="color:${meta.color}">${meta.label}</div>
+        ${secondary && secMeta
+          ? `<div class="ai-rec-secondary">Also consider: <strong>${secMeta.label}</strong></div>`
+          : ''}
+        <div class="ai-rec-desc">${meta.desc}</div>
+      </div>
+    </div>
+
+    <div class="ai-reasoning">
+      <div class="ai-section-label">Reasoning</div>
+      <p class="ai-reasoning-text">${result.reasoning || '—'}</p>
+    </div>
+
+    ${talkingPointsHTML}
+    ${actionsHTML}
+
+    <div id="aiContentOutput" style="display:none"></div>
+  `;
+}
+
+
+// ── STEP 3: Generate a specific document ──────────────────────────────────────
+
+async function generateAIContent(contentType, flagId) {
+  const ai_analysis = _aiAnalysisCache.get(flagId);
+  if (!ai_analysis) {
+    alert('Please run AI analysis first.');
+    return;
+  }
+
+  const outputEl = document.getElementById('aiContentOutput');
+  if (!outputEl) return;
+
+  outputEl.style.display = 'block';
+  outputEl.innerHTML = `
+    <div class="ai-panel-loading" style="margin-top:12px">
+      <div class="api-spinner"></div>
+      <span>Generating ${contentType.replace(/_/g, ' ')}…</span>
+    </div>`;
+
+  try {
+    const result = await fetchGenerateContent(flagId, contentType, ai_analysis, SEMESTER, currentWeek);
+    renderGeneratedContent(result, outputEl);
+  } catch (err) {
+    outputEl.innerHTML = `<div class="api-error" style="margin-top:8px">⚠ ${err.message || 'Generation failed'}</div>`;
+  }
+}
+
+function renderGeneratedContent(result, container) {
+  const typeLabel = (result.content_type || '').replace(/_/g, ' ')
+    .replace(/\b\w/g, c => c.toUpperCase());
+
+  container.innerHTML = `
+    <div class="ai-content-output">
+      <div class="ai-content-header">
+        <span class="ai-content-type-label">${typeLabel}</span>
+        <button class="ai-copy-btn" onclick="copyAIContent(this)">📋 Copy</button>
+      </div>
+      <pre class="ai-content-body">${escapeHtml(result.content || '')}</pre>
+    </div>`;
+}
+
+function copyAIContent(btn) {
+  const pre = btn.closest('.ai-content-output').querySelector('.ai-content-body');
+  if (!pre) return;
+  navigator.clipboard.writeText(pre.textContent).then(() => {
+    btn.textContent = '✓ Copied!';
+    setTimeout(() => { btn.textContent = '📋 Copy'; }, 2000);
+  });
+}
+
+function escapeHtml(str) {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+
+// =============================================================================
+// INTEGRATION NOTES
+// =============================================================================
+//
+// 1. In buildFlaggedCards() — add the "Analyse with AI" button to each flag card's
+//    flag-btn-row, right after the "View Details →" button:
+//
+//      <div class="flag-btn-row">
+//        <button class="view-btn" ... onclick="openFlaggedDetail('${s.id}')">View Details →</button>
+//        <button class="ai-btn" onclick="openFlaggedDetailAndAnalyse('${s.id}')">🤖 Analyse with AI</button>
+//      </div>
+//
+// 2. Add the helper function below to open the detail AND immediately trigger AI:
+//
+//    async function openFlaggedDetailAndAnalyse(studentId) {
+//      await openFlaggedDetail(studentId);   // existing function — opens overlay
+//      runAIAnalysis();                       // immediately trigger AI panel
+//    }
+//
+// 3. In dashboard.html — add these to the flagged-student detail overlay (#overlay),
+//    just below the risk score breakdown section:
+//
+//    <button class="ai-analyse-btn" onclick="runAIAnalysis()">🤖 Analyse with AI</button>
+//    <div id="aiAnalysisPanel" style="display:none"></div>
+//
+// 4. In changeWeek() — add: _aiAnalysisCache.clear();  after _expandCache.clear();
+//
+// =============================================================================

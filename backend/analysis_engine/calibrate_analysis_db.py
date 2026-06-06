@@ -448,17 +448,15 @@ def _advance_analysis_db(from_global_week, to_global_week, classes):
 # 9. PUBLIC ENTRY POINT
 # ══════════════════════════════════════════════════════════════
 
-# NOTE: checked
+# ══════════════════════════════════════════════════════════════
+# 9. PUBLIC ENTRY POINT
+# ══════════════════════════════════════════════════════════════
+
 def calibrate():
     """
     Synchronise the analysis DB with the client DB.
-
-    Called by trigger_calibrate() in views.py, which is in turn hit by
-    the simulator (app.py / Streamlit) after every advance_week() or
-    rollback_to_week(). Blocks until all scripts have committed, then
-    returns a summary dict that views.py serialises as JSON.
+    Called by trigger_calibrate() in views.py.
     """
-    
     t_start = time.monotonic()
     print(f"\n{'='*60}")
     print(f"  calibrate_analysis_db  —  {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
@@ -467,7 +465,6 @@ def calibrate():
     client   = _get_client_state()
     analysis = _get_analysis_state()
 
-    
     client_gw   = client['global_week']
     analysis_gw = analysis['global_week']
 

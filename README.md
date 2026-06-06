@@ -12,7 +12,7 @@
 **AI-powered academic analytics platform for college advisors.**  
 Know who needs attention. Act early. Spread help smartly.
 
-<br/> 
+<br/>
 
 ![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)
 ![Django](https://img.shields.io/badge/Django-4.x-092E20?style=flat-square&logo=django&logoColor=white)
@@ -285,6 +285,14 @@ Include in subsequent requests:
 ```
 Authorization: Bearer <access_token>
 ```
+### Test Accounts
+
+The following seeded accounts are available for local development and testing:
+
+| Advisor ID | Name | Role | Username | Password |
+|------------|------|------|----------|----------|
+| ADV001 | Dr. Priya Mehta | Advisor | `ADV001` | `Dr. Priya Mehta001` |
+
 
 ---
 

@@ -5,7 +5,7 @@ from .models import Users
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.response import Response
 from django.db.models import Max
-from analysis_engine.models import weekly_metrics
+
 
 def get_token(user):
     refresh=RefreshToken.for_user(user)

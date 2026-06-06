@@ -67,7 +67,7 @@
         <div class="sub-header-welcome">Welcome Back, <strong class="advisor-name">…</strong></div>
         <div class="sub-header-badges">
           <span class="week-badge" id="weekBadge">Week -</span>
-          <span class="sem-badge" id="semBadge">Semester 2</span>
+          <span class="sem-badge" id="semBadge">Semester </span>
         </div>
       </div>
       <div class="week-selector">
@@ -90,16 +90,16 @@
           <div class="water-fill" id="waterFill"></div>
           <div class="stat-card-inner">
             <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg></div>
-            <div><div class="stat-label">Avg Risk Score</div><div class="stat-value" id="riskValue">31%</div></div>
+            <div><div class="stat-label">Avg Risk Score</div><div class="stat-value" id="riskValue"></div></div>
           </div>
         </div>
         <div class="stat-card stat-card-red">
           <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
-          <div><div class="stat-label">Flagged Students This Week</div><div class="stat-value">6 <span style="font-size:14px;font-weight:500;opacity:.7">/ 40</span></div></div>
+          <div><div class="stat-label">Flagged Students This Week</div><div class="stat-value">6 <span style="font-size:14px;font-weight:500;opacity:.7"></span></div></div>
         </div>
         <div class="stat-card stat-card-green" onclick="openInterventionsPopup()" style="cursor:pointer">
           <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 12l2 2 4-4"/><path d="M21 12c0 1.2-.504 2.28-1.31 3.04L19 16l.69 1.04A9 9 0 1 1 21 12z"/></svg></div>
-          <div><div class="stat-label">Interventions Logged This Week</div><div class="stat-value">11</div></div>
+          <div><div class="stat-label">Interventions Logged This Week</div><div class="stat-value">-</div></div>
         </div>
       </div>
 
@@ -567,6 +567,12 @@
       <span id="dmRiskPill"></span>
     </div>
     <div class="dm-scroll">
+      <div class="dm-panel">
+        <div class="dm-section-label">Reason for Flagging</div>
+        <!-- Risk Score Breakdown -->
+        <div class="dm-section-title" style="margin-top:18px">Risk Score Breakdown</div>
+        <div id="dmRiskBreakdown" class="dm-risk-breakdown"></div>
+      </div>
       <div class="dm-panel dm-summary-panel" id="dmSummaryPanel">
         <div class="dm-section-label">STUDENT SUMMARY</div>
         <div class="dm-summary-text" id="dmSummaryText"></div>
@@ -599,11 +605,7 @@
           </div>
         </div>
       </div>
-      <div class="dm-panel">
-        <div class="dm-section-label">Reason for Flagging</div>
-        <div id="dmFactors"></div>
-        <div class="dm-major" id="dmMajorNote"></div>
-      </div>
+      
       <div class="dm-bottom-row">
         <div class="dm-bottom-item">
           <div class="dm-bottom-label">Risk of Failing</div>
@@ -615,6 +617,13 @@
           <div class="dm-bottom-bar-wrap"><div class="dm-bottom-bar" id="dmRecBar"></div></div>
           <div class="dm-bottom-val" id="dmRecVal"></div>
         </div>
+      </div>
+      <!-- AI Analysis section — paste after dmRiskBreakdown -->
+      <div class="dm-panel" style="margin-top:16px">
+        <button class="ai-analyse-btn" onclick="runAIAnalysis()">
+          🤖 Analyse with AI
+        </button>
+        <div id="aiAnalysisPanel" style="display:none"></div>
       </div>
       <div class="dm-actions">
         <button class="dm-action-btn primary" id="logInterventionBtn" onclick="logIntervention()">✓ Log Intervention</button>

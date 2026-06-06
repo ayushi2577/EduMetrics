@@ -57,6 +57,7 @@ tzdata==2025.3
 tzlocal==5.3.1
 uritemplate==4.2.0
 urllib3==2.6.3
-psycopg2-binary==2.9.9
+psycopg[binary]
 gunicorn==21.2.0
 whitenoise==6.7.0
+PyMySQL==1.1.1

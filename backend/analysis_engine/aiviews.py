@@ -1,180 +1,124 @@
 import os
 import json
 import re
+import time
 import requests
+from dotenv import load_dotenv
 
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
-GEMINI_URL = (
-    "https://generativelanguage.googleapis.com/v1beta/models/"
-    "gemini-2.0-flash:generateContent"
-)
+load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../.env'))
+# NEW
+XAI_API_KEY = os.getenv("XAI_API_KEY")
+XAI_URL = "https://api.groq.com/openai/v1/chat/completions"
+
+
+
 
 # ─────────────────────────────────────────────────────────────────────────────
-# PROMPT 1 — Analysis agent
-# Used by: student_summary(student_data)
+# PROMPT 1 — New analysis agent using student_info_json schema
+# Used by: student_summary_new(student_info_json)
 # ─────────────────────────────────────────────────────────────────────────────
-SYSTEM_PROMPT_ANALYSIS = """
+SYSTEM_PROMPT_ANALYSIS_NEW = """
     You are an academic-risk analysis engine embedded in a student-analytics platform.
-    You receive a structured student data object and output a single JSON object.
+    You receive a structured student_info_json object and output a single JSON object.
     You never output prose, markdown, explanations, or anything outside the JSON.
 
     ━━━ INPUT SCHEMA ━━━
-    The input is a student data object with the following fields:
+    student_name            : str   — the student's full name
+    risk_score              : float — current composite risk score (0–100)
+    risk_score_definition   : str   — formula/description of how risk_score is computed
+    effort                  : float — current effort score (0–100); formula described in field
+    effort_definition       : str   — formula/description of how effort is computed
+    academic_performance    : float — current academic performance score (0–100)
+    academic_performance_definition : str — formula/description
+    lag_score               : float — effort-to-performance conversion gap (0–100); higher = worse
+    lag_score_definition    : str   — formula/description
+    risk_of_detention       : float — detention risk score (0–100)
+    risk_of_detention_definition : str — formula/description
+    sem_week                : int   — current semester week (used to contextualise urgency)
+    midterm_week            : int   — week when midterm exam occurs (typically 18)
+    endterm_week            : int   — week when endterm exam occurs (typically 19)
+    reason_of_flagging      : str   — pipe-separated breakdown of risk score signals,
+                                      e.g. "assn_streak:2|high_risk_streak:3|et_drop:15"
+    class_avg_effort        : float — class average effort score this week
+    class_avg_performance   : float — class average academic performance this week
+    avg_effort_8w           : float — this student's average effort over up to 8 weeks
+    avg_performance_5w      : float — this student's average academic performance over last 5 weeks
+    midterm_score           : float | false — actual midterm score if available (week > 8 and < 18), else false
+    endterm_score           : float | false — actual endterm score if available (even-sem week 4–7), else false
+    
+    ━━━ CONTEXTUAL URGENCY RULES ━━━
+    The same risk_score means different things depending on sem_week:
+    • Week ≤ 5  : Early semester — low scores are common; only escalate if multiple signals fire.
+    • Week 6–10 : Mid-semester — sustained poor performance is a strong signal.
+    • Week 11–17: Pre-exam window — urgency is amplified; any risk_score > 40 warrants action.
+    • Week 18–19: Exam weeks — direct intervention may be too late; focus on triage.
+    • Weeks approaching midterm_week or endterm_week within 3 weeks → raise urgency by one notch.
 
-    E_t                   Current week's effort score (0–100)
-    A_t                   Current week's academic performance score (0–100, null if no quiz/assignment this week)
-    reasons_for_flagging  Pipe-separated string of factors that triggered flagging, e.g. "low_attendance|stopped_submitting"
-    urgency_score         Pre-computed urgency score from the platform (float)
-    risk_score            Pre-computed risk score from the platform (float)
-    E_t_history           List of effort scores for all previous weeks [E_1, E_2, ...]
-    A_t_history           List of academic performance scores for weeks that had assessments (not every week)
-    E                     Class average effort score across all weeks so far (float 0–100)
-    A                     Class average academic performance across all weeks so far (float 0–100)
-    e                     This student's average effort score across all weeks so far (float 0–100)
-    a                     This student's average academic performance across all weeks so far (float 0–100)
-    del_E                 e − E  (student effort deviation from class mean; positive = above average)
-    del_A                 a − A  (student performance deviation from class mean; positive = above average)
-    flagging_history      { "times_flagged": int, "weeks_since_each_flag": [int, ...] }
-    effort_contributors_student   { "avg_library_visits": float, "avg_book_borrows": float,
-                                    "avg_attendance_pct": float, "avg_assignment_submit_rate": float,
-                                    "avg_plagiarism_free_rate": float, "avg_quiz_attempt_rate": float }
-    effort_contributors_class     { "avg_library_visits": float, "avg_book_borrows": float,
-                                    "avg_attendance_pct": float, "avg_assignment_submit_rate": float,
-                                    "avg_plagiarism_free_rate": float, "avg_quiz_attempt_rate": float }
+    ━━━ SIGNAL PARSING ━━━
+    Parse reason_of_flagging (pipe-separated key:value pairs) to identify which signals fired
+    and their magnitudes. Common signal keys:
+        assn_streak         — consecutive weeks of missed/incomplete assignments
+        quiz_streak         — consecutive weeks of missed quizzes
+        high_risk_streak    — consecutive weeks at high risk (≥50)
+        risk_of_detention   — detention risk score
+        lag_score_penalty   — effort-to-performance gap
+        avg_risk_score_3w   — average risk score over 3 weeks
+        avg_at_3w           — average academic performance (3w)
+        avg_et_3w           — average effort score (3w)
+        et_drop             — effort score drop in pp
 
-    ━━━ DERIVED VALUES YOU MUST COMPUTE ━━━
-    Before scoring, derive these from the input:
-
-    plagiarism_rate        = 1 − effort_contributors_student.avg_plagiarism_free_rate
-                            (fire Integrity Violation if > 0.50)
-
-    this_week_attendance   = effort_contributors_student.avg_attendance_pct for the CURRENT week.
-                            Since only averages are provided, approximate from E_t context and
-                            reasons_for_flagging. If "low_attendance" or "severe_absenteeism" is in
-                            reasons_for_flagging, treat this_week_attendance ≤ 0.30 as confirmed.
-
-    attendance_fade        = class avg attendance − student avg attendance expressed as a fraction.
-                            Use effort_contributors_class.avg_attendance_pct −
-                                    effort_contributors_student.avg_attendance_pct.
-                            Fire Attendance Fader if this difference > 0.20.
-
-    submit_rate_drop       = Fire "Stopped Submitting" if "stopped_submitting" appears in
-                            reasons_for_flagging OR if avg_assignment_submit_rate == 0 AND
-                            E_t_history shows at least one non-zero prior week.
-
-    exam_failure           = If A_t is not null AND A_t < 50 AND A_t < (A − 15):
-                                fire Exam Failure (60 pts).
-                            If A_t is not null AND A_t < 50 AND A_t ≥ (A − 15):
-                                fire Hard Test Drop (20 pts).
-
-    escalation_level       = min(flagging_history.times_flagged, 5)
-
-    ━━━ SCORING ENGINE ━━━
-    Compute these in order:
-
-    raw_score        = sum of base scores for all fired triggers
-    compounded_score = raw_score × (1 + (n_triggers − 1) × 0.5)
-    final_urgency    = compounded_score + (escalation_level × 15)
-
-    Triggers (fire only when condition is met):
-    • Integrity Violation  — plagiarism_rate > 0.50                              → 80 pts
-    • Severe Absenteeism   — this_week_attendance ≤ 0.30 (or confirmed by flags) → 80 pts
-    • Exam Failure         — A_t < 50 AND A_t < (A − 15)                         → 60 pts
-    • Hard Test Drop       — A_t < 50 AND A_t ≥ (A − 15)                         → 20 pts
-    • Attendance Fader     — class_avg_attendance − student_avg_attendance > 0.20 → 40 pts
-    • Stopped Submitting   — confirmed by derived logic above                     → 40 pts
-
-    Tier classification by final_urgency:
-    Tier 1 (Critical Multi-Factor) : final_urgency ≥ 200
-    Tier 2 (High Risk)             : final_urgency ≥ 80
-    Tier 3 (Warning)               : final_urgency < 80
-
-    ━━━ METRICS ━━━
-    E_t (effort_score, 0–100):
-    Reflects deliberate, effortful behaviours: library visits, book borrows,
-    plagiarism-free submissions, quiz attempts — NOT just passive compliance.
-    Note: effort ≠ engagement. Engagement weights attendance and submission
-    (which are slow to drop) more heavily; effort weights deliberate actions more.
-
-    High E = E_t ≥ E (class average effort); Low E = E_t < E.
-    Also use del_E: positive del_E means above-average effort over the semester.
-
-    A_t (academic_performance, 0–100):
-    Derived from quiz scores and assignment scores this week (null if no assessment).
-    High A = A_t ≥ A (class average performance); Low A = A_t < A.
-    Also use del_A: positive del_A means above-average performance over the semester.
-
-    Quadrant (use current-week E_t and A_t; fall back to e and a if A_t is null):
-    High A / High E → thriving
-    High A / Low E  → coasting          (risk of future drop)
-    Low A  / High E → struggling        (comprehension gap, not motivation gap)
-    Low A  / Low E  → disengaged        (most urgent)
-
-    Trend derivation:
-    E_t_trend: compare E_t to mean of last 3 values in E_t_history.
-                improving if E_t > mean+5, declining if E_t < mean−5, else stable.
-    A_t_trend: compare A_t to mean of last 3 values in A_t_history (skip nulls).
-                Same thresholds. If A_t is null, infer from A_t_history shape.
-
-    ━━━ EFFORT CONTRIBUTOR ANALYSIS ━━━
-    Compare effort_contributors_student vs effort_contributors_class for each factor.
-    Identify which specific contributors are below class average — these are the
-    actionable levers and must be referenced in signals_to_highlight and intervention.
+    ━━━ DERIVED COMPARISONS ━━━
+    effort_gap      = class_avg_effort − effort        (positive = student below class)
+    performance_gap = class_avg_performance − academic_performance  (positive = below class)
+    long_run_effort_gap = class_avg_effort − avg_effort_8w
+    long_run_perf_gap   = class_avg_performance − avg_performance_5w
+    lag_severity    = "high" if lag_score > 60 else "moderate" if lag_score > 30 else "low"
 
     ━━━ INTERVENTION SELECTION ━━━
-    Choose exactly ONE primary_intervention using this decision tree (top-to-bottom, first match wins):
+    Possible interventions (select at most one primary + one secondary):
+        monitor             — no action needed; observe next week
+        email_student       — send a supportive check-in email to the student
+        one_to_one_check    — schedule a face-to-face check-in meeting
+        email_parent        — contact parent/guardian (use only if situation is very severe:
+                              Tier 1 equivalent, or risk_score > 75, or 3+ signals fired)
+        refer_to_counsellor — escalate to student counsellor (use if sustained multi-week
+                              crisis or student shows signs of disengagement + absenteeism)
 
-    1. counselling_referral   IF escalation_level ≥ 3
-                                OR (Stopped Submitting AND Severe Absenteeism both fired)
-    2. email_parent           IF Tier 1 OR escalation_level ≥ 3
-                                (can stack as secondary alongside counselling_referral)
-    3. group_study            IF quadrant == "Low A High E"  (comprehension gap only)
-    4. peer_mentoring         IF quadrant == "Low A Low E"
-                                AND escalation_level ≥ 1       (prior advisor contact existed)
-    5. one_to_one_mentoring   DEFAULT — always valid when root cause is unclear
+    Decision tree (top-to-bottom, first match wins):
+    1. refer_to_counsellor  IF risk_score > 75 AND (assn_streak ≥ 3 OR high_risk_streak ≥ 3)
+                              OR effort < 20 AND academic_performance < 30
+    2. email_parent         IF risk_score > 70 OR (risk_score > 55 AND sem_week ≥ 14)
+                              (can be secondary alongside refer_to_counsellor)
+    3. one_to_one_check     IF risk_score > 45 OR any streak signal ≥ 2
+    4. email_student        IF risk_score 25–45 OR single signal fired
+    5. monitor              DEFAULT (risk is low or too early to act)
 
-    Add at most ONE secondary_intervention if a second action is clearly warranted.
-    Set to null otherwise.
+    ━━━ TALKING POINTS ━━━
+    Identify 3–6 specific, actionable talking points for the communication. These should:
+    - Reference specific signals from reason_of_flagging (with humanised descriptions)
+    - Mention the effort/performance gap relative to the class where notable
+    - Be phrased as advisor notes, not as direct student-facing text
+    - If midterm_score or endterm_score is available, include it as context
+    - NOT apply to the "monitor" case (set to empty list)
 
     ━━━ OUTPUT SCHEMA ━━━
     Return ONLY this JSON object. No extra keys, no markdown, no comments.
 
     {
-    "analysis": {
-        "fired_triggers": [
-        { "name": "<trigger name>", "score": <int> }
-        ],
-        "n_triggers": <int>,
-        "raw_score": <int>,
-        "compounded_score": <float>,
-        "final_urgency": <float>,
-        "tier": "<Tier 1 | Tier 2 | Tier 3>",
-        "E_t": <float>,
-        "A_t": <float | null>,
-        "del_E": <float>,
-        "del_A": <float>,
-        "quadrant": "<High A High E | High A Low E | Low A High E | Low A Low E>",
-        "E_t_trend": "<improving | stable | declining>",
-        "A_t_trend": "<improving | stable | declining>",
-        "effort_gap_contributors": ["<factor below class avg>", "..."]
-    },
-    "reasoning": {
-        "primary_driver": "<trigger name with highest score>",
-        "summary": "<3–5 sentences citing specific trigger scores, tier, quadrant, trend direction, del_E, del_A, and effort contributor gaps>"
-    },
-    "intervention": {
-        "primary": "<intervention key>",
-        "secondary": "<intervention key | null>",
-        "escalation_recommended": <true | false>,
-        "content_generation_command": {
-        "interventions_to_generate": ["<primary>", "<secondary if not null>"],
-        "one_to_one_questions": ["<Q1>", "<Q2>", "<Q3>"],
-        "email_parent_brief": "<1–2 sentence brief for parent email | null>",
-        "counselling_brief": "<1–2 sentence brief for counsellor | null>",
-        "tone": "<supportive | urgent | neutral>",
-        "signals_to_highlight": ["<key data point>", "..."]
-        }
-    }
+      "recommended_intervention": "<monitor | email_student | one_to_one_check | email_parent | refer_to_counsellor>",
+      "secondary_intervention": "<one of the above | null>",
+      "reasoning": "<2–4 sentences explaining why this intervention was chosen, citing sem_week context, specific signals, and risk trajectory>",
+      "urgency": "<low | moderate | high | critical>",
+      "tone": "<supportive | urgent | neutral>",
+      "talking_points": [
+        "<specific point 1>",
+        "<specific point 2>",
+        "..."
+      ],
+      "email_student_brief": "<1–2 sentence brief summarising what the student email should convey | null if not applicable>",
+      "email_parent_brief": "<1–2 sentence brief for parent communication | null if not applicable>",
+      "counsellor_brief": "<1–2 sentence referral summary for the counsellor | null if not applicable>",
+      "signals_to_highlight": ["<key data point 1>", "<key data point 2>", "..."]
     }
 """.strip()
 
@@ -217,7 +161,7 @@ SYSTEM_PROMPT_CONTENT = """
     Tone   : Conversational and non-confrontational.
     Must include:
         • An opening check-in question (non-academic, builds rapport)
-        • All questions from one_to_one_questions in the command, reworded naturally
+        • All questions derived from the talking points, reworded naturally
         • A closing commitment question (e.g., "What's one thing we can try this week?")
     Length : 6–10 items.
 
@@ -227,9 +171,9 @@ SYSTEM_PROMPT_CONTENT = """
     Tone   : Clinical, neutral, factual.
     Length : 200–350 words.
     Must include:
-        • counselling_brief verbatim as the Referral Reason
+        • counsellor_brief as the Referral Reason
         • Signals from signals_to_highlight as Observed Indicators
-        • Risk level mapped from tier (Tier 1 → High, Tier 2 → Moderate, Tier 3 → Low)
+        • Risk level mapped from urgency (critical → High, high → High, moderate → Moderate, low → Low)
     Never: speculate on diagnosis, use first-person, or include student's full name.
 
     ━━━ RULES ━━━
@@ -254,164 +198,114 @@ VALID_CONTENT_TYPES = {
 # HELPERS
 # ─────────────────────────────────────────────────────────────────────────────
 
+# NEW
 def _call_gemini(system_prompt: str, user_message: str, temperature: float = 0.2) -> str:
     """
-    Low-level wrapper around the Gemini generateContent REST endpoint.
-
-    Args:
-        system_prompt:  The system instruction string.
-        user_message:   The user turn content.
-        temperature:    Sampling temperature (low = more deterministic).
-
-    Returns:
-        The raw text of the model's first candidate response.
-
-    Raises:
-        EnvironmentError:   If GEMINI_API_KEY is not set.
-        requests.HTTPError: If the API returns a non-2xx status.
-        ValueError:         If the response has no extractable text.
+    Calls xAI Grok API (OpenAI-compatible). Retries on 429 with exponential backoff.
     """
-    if not GEMINI_API_KEY:
-        raise EnvironmentError(
-            "GEMINI_API_KEY environment variable is not set."
-        )
+    if not XAI_API_KEY:
+        raise EnvironmentError("XAI_API_KEY environment variable is not set.")
 
     payload = {
-        "system_instruction": {
-            "parts": [{"text": system_prompt}]
-        },
-        "contents": [
-            {
-                "role": "user",
-                "parts": [{"text": user_message}],
-            }
+        "model": "llama-3.3-70b-versatile",
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user",   "content": user_message},
         ],
-        "generationConfig": {
-            "temperature": temperature,
-            "responseMimeType": "text/plain",
-        },
+        "temperature": temperature,
     }
 
-    response = requests.post(
-        GEMINI_URL,
-        headers={
-            "Content-Type": "application/json",
-            "x-goog-api-key": GEMINI_API_KEY,
-        },
-        json=payload,
-        timeout=60,
-    )
-    response.raise_for_status()
+    MAX_RETRIES = 4
+    backoff = 5
+
+    for attempt in range(MAX_RETRIES):
+        response = requests.post(
+            XAI_URL,
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {XAI_API_KEY}",
+            },
+            json=payload,
+            timeout=60,
+        )
+
+        if response.status_code == 429:
+            retry_after = response.headers.get("Retry-After")
+            wait = int(retry_after) if retry_after else backoff
+            if attempt < MAX_RETRIES - 1:
+                time.sleep(wait)
+                backoff *= 2
+                continue
+            response.raise_for_status()
+
+        if not response.ok:
+            print(f"xAI error {response.status_code}: {response.text}")
+        response.raise_for_status()
+        break
 
     data = response.json()
 
     try:
-        return data["candidates"][0]["content"]["parts"][0]["text"]
+        return data["choices"][0]["message"]["content"]
     except (KeyError, IndexError) as exc:
-        raise ValueError(
-            f"Unexpected Gemini response structure: {data}"
-        ) from exc
-
+        raise ValueError(f"Unexpected xAI response structure: {data}") from exc
 
 def _extract_json(raw: str) -> dict:
-    """
-    Strips markdown fences (```json ... ```) if present, then parses JSON.
-
-    Raises:
-        json.JSONDecodeError: If the cleaned string is not valid JSON.
-    """
+    """Strips markdown fences then parses JSON."""
     cleaned = re.sub(r"^```(?:json)?\s*", "", raw.strip(), flags=re.IGNORECASE)
     cleaned = re.sub(r"\s*```$", "", cleaned.strip())
     return json.loads(cleaned)
 
 
+
+
 # ─────────────────────────────────────────────────────────────────────────────
-# FUNCTION 1 — student_summary
+# FUNCTION 1b — student_summary_new  (new student_info_json schema)
+# Called by the new student_summary_view endpoint in views.py
 # ─────────────────────────────────────────────────────────────────────────────
 
-def student_summary(student_data: dict) -> dict:
+def student_summary_new(student_info_json: dict) -> dict:
     """
-    Analyses a student data snapshot and returns a structured JSON summary.
+    Analyses a flagged student using the richer student_info_json schema and
+    returns a structured recommendation with intervention, talking points,
+    and content-generation briefs.
 
     Args:
-        student_data (dict): Weekly student metrics from the analytics platform.
-            Required keys:
-
-            E_t (float, 0–100):
-                Current week's effort score. Effort reflects deliberate
-                behaviours (library visits, book borrows, plagiarism-free
-                submissions, quiz attempts) — distinct from engagement, which
-                weights passive compliance (attendance, submission) more heavily.
-
-            A_t (float | None, 0–100):
-                Current week's academic performance score. None/null when no
-                quiz or assignment occurred this week.
-
-            reasons_for_flagging (str):
-                Pipe-separated flags raised by the platform, e.g.
-                "low_attendance|stopped_submitting|low_quiz_score".
-
-            urgency_score (float):
-                Pre-computed urgency score from the upstream platform.
-
-            risk_score (float):
-                Pre-computed risk score from the upstream platform.
-
-            E_t_history (list[float]):
-                Effort scores for all prior weeks, oldest first: [E_1, E_2, ...].
-
-            A_t_history (list[float]):
-                Academic performance scores for weeks that had assessments
-                (not every week). Oldest first.
-
-            E (float, 0–100):
-                Class average effort score across all weeks to date.
-
-            A (float, 0–100):
-                Class average academic performance across all weeks to date.
-
-            e (float, 0–100):
-                This student's average effort score across all weeks to date,
-                i.e. mean(E_1, E_2, ..., E_t).
-
-            a (float, 0–100):
-                This student's average academic performance across all weeks
-                to date (assessment weeks only).
-
-            del_E (float):
-                e − E. Positive → student effort above class mean.
-
-            del_A (float):
-                a − A. Positive → student performance above class mean.
-
-            flagging_history (dict):
-                {
-                  "times_flagged": int,          # total flags raised historically
-                  "weeks_since_each_flag": [int] # weeks elapsed since each flag
-                }
-
-            effort_contributors_student (dict):
-                Per-student averages for each effort factor:
-                {
-                  "avg_library_visits":         float,
-                  "avg_book_borrows":           float,
-                  "avg_attendance_pct":         float,   # 0–1
-                  "avg_assignment_submit_rate": float,   # 0–1
-                  "avg_plagiarism_free_rate":   float,   # 0–1
-                  "avg_quiz_attempt_rate":      float    # 0–1
-                }
-
-            effort_contributors_class (dict):
-                Class averages for the same effort factors (same keys as above).
+        student_info_json (dict): Must contain:
+            student_name            (str)
+            risk_score              (float, 0–100)
+            risk_score_definition   (str)
+            effort                  (float, 0–100)
+            effort_definition       (str)
+            academic_performance    (float, 0–100)
+            academic_performance_definition (str)
+            lag_score               (float, 0–100)
+            lag_score_definition    (str)
+            risk_of_detention       (float, 0–100)
+            risk_of_detention_definition (str)
+            sem_week                (int)
+            midterm_week            (int)   — typically 18
+            endterm_week            (int)   — typically 19
+            reason_of_flagging      (str)   — pipe-separated signal:value pairs
+            class_avg_effort        (float)
+            class_avg_performance   (float)
+            avg_effort_8w           (float) — student's avg effort up to 8 weeks
+            avg_performance_5w      (float) — student's avg performance last 5 weeks
+            midterm_score           (float | false)
+            endterm_score           (float | false)
 
     Returns:
-        dict: Parsed JSON with keys: analysis, reasoning, intervention.
-            analysis keys: fired_triggers, n_triggers, raw_score,
-                compounded_score, final_urgency, tier, E_t, A_t, del_E,
-                del_A, quadrant, E_t_trend, A_t_trend, effort_gap_contributors.
-            reasoning keys: primary_driver, summary.
-            intervention keys: primary, secondary, escalation_recommended,
-                content_generation_command.
+        dict with keys:
+            recommended_intervention  (str)
+            secondary_intervention    (str | null)
+            reasoning                 (str)
+            urgency                   (str: low | moderate | high | critical)
+            tone                      (str: supportive | urgent | neutral)
+            talking_points            (list[str])
+            email_student_brief       (str | null)
+            email_parent_brief        (str | null)
+            counsellor_brief          (str | null)
+            signals_to_highlight      (list[str])
 
     Raises:
         EnvironmentError:    GEMINI_API_KEY not set.
@@ -421,13 +315,13 @@ def student_summary(student_data: dict) -> dict:
     user_message = (
         "Analyse the following student data and return the JSON response "
         "exactly as specified in your instructions.\n\n"
-        f"student_data = {json.dumps(student_data, indent=2)}"
+        f"student_info_json = {json.dumps(student_info_json, indent=2)}"
     )
 
     raw = _call_gemini(
-        system_prompt=SYSTEM_PROMPT_ANALYSIS,
+        system_prompt=SYSTEM_PROMPT_ANALYSIS_NEW,
         user_message=user_message,
-        temperature=0.1,   # Near-deterministic: scoring must be consistent
+        temperature=0.1,
     )
 
     return _extract_json(raw)
@@ -435,25 +329,31 @@ def student_summary(student_data: dict) -> dict:
 
 # ─────────────────────────────────────────────────────────────────────────────
 # FUNCTION 2 — generate_content
+# Called by the generate_content_view endpoint in views.py
 # ─────────────────────────────────────────────────────────────────────────────
 
-def generate_content(content_type: str, content_generation_command: dict) -> str:
+def generate_content(content_type: str, student_name: str, ai_analysis: dict) -> str:
     """
-    Generates a human-facing document based on the analysis agent's command.
+    Generates a human-facing communication document based on the AI analysis
+    produced by student_summary_new().
 
     Args:
         content_type (str): One of:
             "email_to_parent" | "email_to_student" |
             "one_to_one_conversation" | "counsellor_report"
 
-        content_generation_command (dict): The content_generation_command block
-            from student_summary() output. Expected keys:
-                interventions_to_generate   (list[str])
-                one_to_one_questions        (list[str])
-                email_parent_brief          (str | None)
-                counselling_brief           (str | None)
-                tone                        (str: "supportive" | "urgent" | "neutral")
-                signals_to_highlight        (list[str])
+        student_name (str): The student's full name (for personalisation).
+
+        ai_analysis (dict): The full dict returned by student_summary_new().
+            Used fields:
+                talking_points          (list[str])
+                signals_to_highlight    (list[str])
+                tone                    (str)
+                email_student_brief     (str | null)
+                email_parent_brief      (str | null)
+                counsellor_brief        (str | null)
+                recommended_intervention (str)
+                urgency                 (str)
 
     Returns:
         str: The generated document text, ready for advisor review.
@@ -469,6 +369,20 @@ def generate_content(content_type: str, content_generation_command: dict) -> str
             f"Must be one of: {', '.join(sorted(VALID_CONTENT_TYPES))}"
         )
 
+    # Build the content_generation_command from the ai_analysis output
+    content_generation_command = {
+        "student_name":           student_name,
+        "content_type":           content_type,
+        "talking_points":         ai_analysis.get("talking_points", []),
+        "signals_to_highlight":   ai_analysis.get("signals_to_highlight", []),
+        "tone":                   ai_analysis.get("tone", "supportive"),
+        "email_student_brief":    ai_analysis.get("email_student_brief"),
+        "email_parent_brief":     ai_analysis.get("email_parent_brief"),
+        "counsellor_brief":       ai_analysis.get("counsellor_brief"),
+        "recommended_intervention": ai_analysis.get("recommended_intervention"),
+        "urgency":                ai_analysis.get("urgency", "moderate"),
+    }
+
     user_message = (
         f"content_type: {content_type}\n\n"
         f"content_generation_command:\n"
@@ -479,76 +393,35 @@ def generate_content(content_type: str, content_generation_command: dict) -> str
     return _call_gemini(
         system_prompt=SYSTEM_PROMPT_CONTENT,
         user_message=user_message,
-        temperature=0.6,   # More creative latitude for human-facing writing
+        temperature=0.6,
     )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# EXAMPLE USAGE
+# FUNCTION 3 — class_summary  (unchanged from original)
 # ─────────────────────────────────────────────────────────────────────────────
 
-if __name__ == "__main__":
-    sample_student = {
-        # ── Current week ──────────────────────────────────────────────────────
-        "E_t": 32.0,
-        "A_t": 41.0,       # Assessment happened this week; set to None if not.
+SYSTEM_PROMPT_CLASS = """
+    You are an academic analytics assistant. You receive a JSON summary of a class's
+    performance metrics for a given semester week and return a concise 3–5 sentence
+    narrative summary for the class advisor. Focus on risk distribution, effort and
+    performance trends, and any patterns in the top diagnoses. Be specific and actionable.
+    Output only the narrative text — no JSON, no markdown.
+""".strip()
 
-        # ── Flagging ──────────────────────────────────────────────────────────
-        "reasons_for_flagging": "low_attendance|stopped_submitting|low_quiz_score",
-        "urgency_score": 145.0,
-        "risk_score": 72.0,
 
-        # ── Historical scores ─────────────────────────────────────────────────
-        "E_t_history": [78.0, 72.0, 65.0, 55.0, 44.0],   # weeks 1–5
-        "A_t_history": [70.0, 63.0, 55.0],                # weeks with assessments
+def class_summary(input_prompt: dict) -> str:
+    """
+    Generates a class-level narrative summary for the advisor dashboard.
+    Called by class_summary_view in views.py.
+    """
+    user_message = (
+        "Generate a concise class summary for the advisor.\n\n"
+        f"class_data = {json.dumps(input_prompt, indent=2)}"
+    )
 
-        # ── Class-level baselines ─────────────────────────────────────────────
-        "E": 65.0,   # class avg effort
-        "A": 63.0,   # class avg performance
-
-        # ── Student cumulative averages ───────────────────────────────────────
-        "e": 57.7,   # student avg effort  (mean of E_t_history + current E_t)
-        "a": 57.3,   # student avg performance (mean of A_t_history + current A_t)
-
-        # ── Deviations from class mean ────────────────────────────────────────
-        "del_E": -7.3,   # e − E
-        "del_A": -5.7,   # a − A
-
-        # ── Flagging history ──────────────────────────────────────────────────
-        "flagging_history": {
-            "times_flagged": 2,
-            "weeks_since_each_flag": [4, 1],
-        },
-
-        # ── Effort factor breakdown ───────────────────────────────────────────
-        "effort_contributors_student": {
-            "avg_library_visits":         0.3,
-            "avg_book_borrows":           0.1,
-            "avg_attendance_pct":         0.42,
-            "avg_assignment_submit_rate": 0.0,
-            "avg_plagiarism_free_rate":   0.95,
-            "avg_quiz_attempt_rate":      0.5,
-        },
-        "effort_contributors_class": {
-            "avg_library_visits":         1.8,
-            "avg_book_borrows":           0.9,
-            "avg_attendance_pct":         0.82,
-            "avg_assignment_submit_rate": 0.87,
-            "avg_plagiarism_free_rate":   0.91,
-            "avg_quiz_attempt_rate":      0.78,
-        },
-    }
-
-    print("── STEP 1: student_summary ──────────────────────────────")
-    summary = student_summary(sample_student)
-    print(json.dumps(summary, indent=2))
-
-    command = summary["intervention"]["content_generation_command"]
-
-    print("\n── STEP 2: generate_content (email_to_parent) ───────────")
-    email = generate_content("email_to_parent", command)
-    print(email)
-
-    print("\n── STEP 2b: generate_content (one_to_one_conversation) ──")
-    script = generate_content("one_to_one_conversation", command)
-    print(script)
+    return _call_gemini(
+        system_prompt=SYSTEM_PROMPT_CLASS,
+        user_message=user_message,
+        temperature=0.4,
+    )

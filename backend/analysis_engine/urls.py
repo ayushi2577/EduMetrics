@@ -47,6 +47,8 @@ from .views import (
     all_students,
     detainment_risk,
     student_detail,
+    student_summary_view,
+    generate_content_view,
 
     # ── NEW: Reports ────────────────────────────────────────────────────────
     pre_midterm_report,
@@ -57,6 +59,7 @@ from .views import (
 
     # ── Internal ────────────────────────────────────────────────────────────
     trigger_calibrate,
+    calibrate_status,
 )
 
 urlpatterns = [
@@ -113,8 +116,16 @@ urlpatterns = [
     # GET /api/analysis/reports/post_endterm/?class_id=X&semester=Y
     path('reports/post_endterm/', post_endterm_report, name='post_endterm_report'),
 
+    
+    path('ai/student_summary/',  student_summary_view,  name='ai_student_summary'),
+    path('ai/generate_content/', generate_content_view, name='ai_generate_content'),
+
+
 
     # ── Internal ──────────────────────────────────────────────────────────────
     # POST /api/analysis/trigger_calibrate/
-    path('trigger_calibrate/', trigger_calibrate, name='trigger_calibrate'),
+    # path('trigger_calibrate/', trigger_calibrate, name='trigger_calibrate'),
+    # path('calibrate/', trigger_calibrate, name='calibrate_shortcut'),
+    path('calibrate/',        trigger_calibrate, name='trigger_calibrate'),
+    path('calibrate/status/', calibrate_status),
 ]
