@@ -61,3 +61,4 @@ psycopg[binary]
 gunicorn==21.2.0
 whitenoise==6.7.0
 PyMySQL==1.1.1
+mysqlclient
